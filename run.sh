@@ -3,7 +3,7 @@
 set -e
 
 steps=(chisel sim_build sim_run)
-source ./scripts/steps.sh
+source ./scripts/steps.sh "$@"
 
 root=.
 work_dir=${root}/work
