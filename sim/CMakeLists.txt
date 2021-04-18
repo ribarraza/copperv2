@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.16)
+project(cmake_example)
+find_package(verilator HINTS $ENV{VERILATOR_ROOT})
+add_executable(Vour sim_main.cpp)
+verilate(Vour SOURCES our.v)
