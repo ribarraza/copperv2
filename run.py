@@ -28,7 +28,7 @@ chisel_work_dir=work_dir/'chisel'
 sim_work_dir=work_dir/'sim'
 
 steps = dict(
-    chisel = f'./scripts/chisel.sh "runMain gcd.GCDDriver --target-dir {chisel_work_dir}"',
+    chisel = f'./scripts/chisel.sh "runMain Copperv2Driver --target-dir {chisel_work_dir}"',
     sim_build = [
         f"./scripts/verilator.sh cmake -f ./sim/CMakeLists.txt -B {sim_work_dir}",
         f"./scripts/verilator.sh cmake --build {sim_work_dir} --parallel $(nproc)",
