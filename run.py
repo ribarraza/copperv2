@@ -30,7 +30,7 @@ sim_work_dir=work_dir/'sim'
 steps = dict(
     chisel = f'./scripts/chisel.sh "runMain gcd.GCDDriver --target-dir {chisel_work_dir}"',
     sim_build = [
-        f"./scripts/verilator.sh cmake -f ./scripts/CMakeLists.txt -B {sim_work_dir}",
+        f"./scripts/verilator.sh cmake -f ./sim/CMakeLists.txt -B {sim_work_dir}",
         f"./scripts/verilator.sh cmake --build {sim_work_dir} --parallel $(nproc)",
     ],
     sim_run = dict(args="./Vour",cwd=sim_work_dir),
@@ -45,7 +45,7 @@ parser.add_argument('-to', type=str, choices=step_list, default=step_list[-1],
 
 args = parser.parse_args()
 
-for step in step_list[step_list.index(args._from):step_list.index(args.to)]:
+for step in step_list[step_list.index(args._from):step_list.index(args.to)+1]:
     commands = steps[step]
     run_opts = dict(shell=True,check=True,encoding='utf-8')
     if isinstance(commands,dict):
