@@ -6,6 +6,20 @@ from pathlib import Path
 import subprocess
 import time
 
+# unbuffered output
+class Unbuffered:
+   def __init__(self, stream):
+       self.stream = stream
+   def write(self, data):
+       self.stream.write(data)
+       self.stream.flush()
+   def writelines(self, datas):
+       self.stream.writelines(datas)
+       self.stream.flush()
+   def __getattr__(self, attr):
+       return getattr(self.stream, attr)
+sys.stdout = Unbuffered(sys.stdout)
+
 root=Path('.')
 work_dir=root/'work'
 work_dir.mkdir(exist_ok=True)
@@ -17,7 +31,7 @@ steps = dict(
     chisel = f'./scripts/chisel.sh "runMain gcd.GCDDriver --target-dir {chisel_work_dir}"',
     sim_build = [
         f"./scripts/verilator.sh cmake -f ./scripts/CMakeLists.txt -B {sim_work_dir}",
-        f"./scripts/verilator.sh cmake --build {sim_work_dir}",
+        f"./scripts/verilator.sh cmake --build {sim_work_dir} --parallel $(nproc)",
     ],
     sim_run = dict(args="./Vour",cwd=sim_work_dir),
 )
@@ -42,15 +56,15 @@ for step in step_list[step_list.index(args._from):step_list.index(args.to)]:
     if isinstance(cmd,str):
         cmd = [cmd]
     for c in cmd:
-        print(f"{step}> {c}")
+        print(f"run.py-info: {step}> {c}")
         try:
             subprocess.run(c,**run_opts)
         except KeyboardInterrupt:
             time.sleep(1)
-            print('\nrun.py: Keyboard interrupt')
+            print('\nrun.py-error: Keyboard interrupt')
             sys.exit(1)
         except subprocess.CalledProcessError:
-            print('run.py: Called process error')
+            print('run.py-error: Called process error')
             sys.exit(1)
 
 
