@@ -5,6 +5,5 @@ mkdir -p ~/.sbt
 mkdir -p ~/.cache
 
 #shell="--entrypoint bash"
-CHOME=/home/chisel
 
-podman run --rm $shell -it -p 8888:8888 -v $PWD:$CHOME/work:Z -v ~/.ivy2:$CHOME/.ivy2:Z -v ~/.sbt:$CHOME/.sbt:Z -v ~/.cache:$CHOME/.cache:Z diegob94/open_eda:chisel "$@"
+podman run --rm $shell -it -v $PWD:/work:Z -v ~/.ivy2:/root/.ivy2:Z -v ~/.sbt:/root/.sbt:Z -v ~/.cache:/root/.cache:Z diegob94/open_eda:chisel "$@"
