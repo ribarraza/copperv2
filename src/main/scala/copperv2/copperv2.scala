@@ -10,6 +10,8 @@ class Cuv2Config {
     var resp_width: Int = 1
   )
   var bus = new BusConfig()
+  var pc_width = 32
+  var pc_init = 0
 }
 
 class Cuv2ReadChannel(config: Cuv2Config) extends Bundle {
@@ -39,7 +41,7 @@ class Copperv2Bus(config: Cuv2Config) extends Bundle {
   val dw = new Cuv2WriteChannel(config)
 }
 
-class Copperv2 extends MultiIOModule {
+class Copperv2 extends MultiIOModule with RequireSyncReset {
   val config = new Cuv2Config
   val bus = IO(new Copperv2Bus(config))
   bus.ir.addr.valid := 0.U
@@ -53,5 +55,14 @@ class Copperv2 extends MultiIOModule {
   bus.dw.req.bits.addr := 0.U
   bus.dw.req.bits.strobe := 0.U
   bus.dw.resp.ready := 0.U
+  val pc_en = true.B
+  val pc = RegInit(config.pc_init.U(config.pc_width.W))
+  when (pc_en) {
+    pc := pc + 4.U
+  }
+  when (bus.ir.addr.ready) {
+    bus.ir.addr.bits := pc
+    bus.ir.addr.valid := true.B
+  }
 }
 
