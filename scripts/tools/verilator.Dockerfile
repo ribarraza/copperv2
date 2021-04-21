@@ -37,6 +37,7 @@ ENV PATH="/eda/verilator/bin:${PATH}"
 COPY --from=build_verilator /eda/verilator /eda/verilator
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y cmake make gcc g++ gdb \
+    && apt-get install --no-install-recommends -y cmake make gcc g++ gdb perl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+

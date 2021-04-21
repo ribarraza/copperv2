@@ -1,3 +1,3 @@
 #!/bin/bash
 
-podman run --rm -v $PWD:/work:Z diegob94/open_eda:verilator "$@"
+podman run --rm -it -v $PWD:/work:Z diegob94/open_eda:verilator "$@"
