@@ -45,7 +45,7 @@ steps = dict(
         f"./scripts/verilator.sh cmake -f ./sim/CMakeLists.txt -B {sim_work_dir}",
         f"./scripts/verilator.sh cmake --build {sim_work_dir} --parallel $(nproc)",
     ],
-    sim_run = dict(args="./Vour",cwd=sim_work_dir),
+    sim_run = dict(args="./Vsim",cwd=sim_work_dir),
 )
 step_list = list(steps.keys())
 
