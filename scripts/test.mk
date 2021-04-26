@@ -1,16 +1,20 @@
 # defaults
+DUT_COPPERV1 ?= 1
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 
-WORK=..
-VERILOG_SOURCES += $(WORK)/chisel/Copperv2.v
+ROOT = $(abspath ../..)
 
-# TOPLEVEL is the name of the toplevel module in your Verilog or VHDL file
-TOPLEVEL = Copperv2
+ifneq ($(DUT_COPPERV1),1)
+	VERILOG_SOURCES += $(ROOT)/sim/tb_wrapper.v $(ROOT)/work/chisel/Copperv2.v
+else
+	VERILOG_SOURCES += $(ROOT)/sim/tb_wrapper.v $(wildcard $(ROOT)/rtl_v1/*.v)
+	COMPILE_ARGS += -DDUT_COPPERV1
+endif
 
-# MODULE is the basename of the Python test file
-MODULE = test_my_design
+TOPLEVEL = tb_wrapper
+MODULE = test_copperv2
+COMPILE_ARGS += -I$(ROOT)/rtl_v1/include
 
-# include cocotb's make rules to take care of the simulator setup
 include $(shell cocotb-config --makefiles)/Makefile.sim
 
