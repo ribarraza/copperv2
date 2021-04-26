@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import sys
 import argparse
 from pathlib import Path
@@ -21,7 +22,10 @@ class Unbuffered:
 sys.stdout = Unbuffered(sys.stdout)
 
 def run(c,run_opts,step):
-    print(f"run.py-info: {step}> {c}")
+    echo = f"run.py-info: {step}> {c}"
+    if 'cwd' in run_opts:
+        echo = echo + f' # cwd: {run_opts["cwd"]}'
+    print(echo)
     try:
         subprocess.run(c,**run_opts)
     except KeyboardInterrupt:
@@ -38,14 +42,14 @@ work_dir.mkdir(exist_ok=True)
 
 chisel_work_dir=work_dir/'chisel'
 sim_work_dir=work_dir/'sim'
+sim_work_dir.mkdir(exist_ok=True)
 
 steps = dict(
-    chisel = f'./scripts/chisel.sh sbt "runMain Copperv2Driver --target-dir {chisel_work_dir}"',
-    sim_build = [
-        f"./scripts/verilator.sh cmake -f ./sim/CMakeLists.txt -B {sim_work_dir}",
-        f"./scripts/verilator.sh cmake --build {sim_work_dir} --parallel $(nproc)",
-    ],
-    sim_run = dict(args="./Vsim",cwd=sim_work_dir),
+    chisel = f'sbt "runMain Copperv2Driver --target-dir {chisel_work_dir}"',
+    test = dict(args=[
+        f'ln -fs ../../scripts/test.mk ./Makefile',
+        f'ln -fs ../../sim/*.py .',
+        'make'],cwd=sim_work_dir),
 )
 step_list = list(steps.keys())
 
@@ -59,7 +63,11 @@ parser.add_argument('-chisel', action='store_true',
 
 args = parser.parse_args()
 
-default_run_opts = dict(shell=True,check=True,encoding='utf-8')
+default_run_opts = dict(
+    shell=True,
+    check=True,
+    encoding='utf-8',
+)
 if args.chisel:
     run('./scripts/chisel.sh sbt',default_run_opts,'chisel_shell')
     sys.exit(0)

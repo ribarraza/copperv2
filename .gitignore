@@ -1,4 +1,5 @@
 ### Project Specific stuff
+scripts/tools/build.sh
 test_run_dir/*
 work/*
 ### XilinxISE template
