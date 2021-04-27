@@ -79,7 +79,9 @@ module tb_wrapper();
     );
     `endif
 
+    reg [1023:0] test_name;
     initial begin
+        test_name = "unknown";
         `ifndef DUT_COPPERV1
         $dumpfile ("copperv2.vcd");
         `else

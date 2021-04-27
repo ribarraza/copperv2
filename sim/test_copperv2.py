@@ -1,4 +1,5 @@
 import dataclasses
+import ctypes
 import logging
 
 import cocotb
@@ -74,8 +75,14 @@ def instruction_read_callback(driver: BusDriver):
             ))
     return get_response
 
+def verilog_string(x):
+    return int.from_bytes(x.encode("utf-8"),byteorder='big')
+def get_test_name():
+    return verilog_string(cocotb.regression_manager._test.__name__)
+
 @cocotb.test()
 async def basic_test(dut):
+    dut.test_name <= get_test_name()
     dut._log.setLevel(logging.DEBUG)
     dut._log.info("Running test...")
 
@@ -94,3 +101,4 @@ async def basic_test(dut):
         await RisingEdge(dut.clock)
 
     dut._log.info("Running test...done")
+
