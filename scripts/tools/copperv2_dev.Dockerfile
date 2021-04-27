@@ -20,14 +20,16 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# cocotb
+# cocotb deps
 RUN apt-get update \
     && apt-get install --no-install-recommends -y python3 python3-pip python3-dev \
     && apt-get install --no-install-recommends -y cmake make gcc g++ gdb perl ccache \
-    && pip3 install --no-cache-dir cocotb cocotb-coverage pytest remote_pdb \
     && ln -s /usr/bin/pip3 /usr/bin/pip \
     && ln -s /usr/bin/python3 /usr/bin/python \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# cocotb
+RUN pip install --no-cache-dir cocotb cocotb-coverage pytest remote_pdb pyelftools
 
 WORKDIR /container
