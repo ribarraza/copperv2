@@ -3,6 +3,10 @@ DUT_COPPERV1 ?= 1
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 
+export PYTHONBREAKPOINT=remote_pdb.set_trace
+export REMOTE_PDB_HOST=0.0.0.0
+export REMOTE_PDB_PORT=4444
+
 ROOT = $(abspath ../..)
 
 ifneq ($(DUT_COPPERV1),1)
