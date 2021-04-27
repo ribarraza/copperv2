@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 MOUNT_DIR=$(readlink -f ${MOUNT_DIR:-${PWD}})
 
 WORK_DIR_OPT=""

@@ -60,6 +60,8 @@ parser.add_argument('-to', type=str, choices=step_list, default=step_list[-1],
                     help='Run to this step')
 parser.add_argument('-chisel', action='store_true',
                     help='Launch chisel interactive shell (sbt)')
+parser.add_argument('-cocotb_reduced', action='store_true',
+                    help='Launch cocotb in reduced log mode')
 
 args = parser.parse_args()
 
@@ -67,16 +69,27 @@ default_run_opts = dict(
     shell=True,
     check=True,
     encoding='utf-8',
+    env = os.environ,
 )
+
 if args.chisel:
     run('./scripts/chisel.sh sbt',default_run_opts,'chisel_shell')
     sys.exit(0)
+
+if args.cocotb_reduced:
+    default_run_opts['env']["COCOTB_REDUCED_LOG_FMT"] = "1"
 
 for step in step_list[step_list.index(args._from):step_list.index(args.to)+1]:
     commands = steps[step]
     run_opts = default_run_opts
     if isinstance(commands,dict):
         cmd = commands.pop('args')
+        if 'env' in commands:
+            new = commands.pop('env')
+            if "env" in run_opts:
+                run_opts["env"].update(new)
+            else:
+                run_opts["env"] = new
         run_opts.update(commands)
     else:
         cmd = commands
