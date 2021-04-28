@@ -12,22 +12,25 @@ from compile_test import compile_test
 from utils import verilog_string, get_test_name
 
 class Testbench():
-    def __init__(self, tb_wrapper, clock, reset, elf):
+    def __init__(self, tb_wrapper, clock, reset, elf, expected_reg_file):
         self.clock = clock
         self.reset = reset
         self.elf = elf
-        cocotb.fork(Clock(self.clock,10,units='ns').start())
         self.reset.setimmediatevalue(0)
         self.bus_ir_driver = ReadBusSourceDriver(tb_wrapper, "bus_ir", self.clock)
         self.bus_ir_monitor = ReadBusMonitor(tb_wrapper, "bus_ir", self.clock,
             callback=self.instruction_read_callback, reset = self.reset)
         self.regfile_monitor = RegFileWriteMonitor(tb_wrapper.dut, self.clock)
         self.scoreboard = Scoreboard(tb_wrapper.dut)
+        self.expected_reg_file = [RegFileWriteTransaction.from_string(t) for t in expected_reg_file]
+        self.scoreboard.add_interface(self.regfile_monitor, self.expected_reg_file)
     async def do_reset(self):
         self.reset <= 0
         await ClockCycles(self.clock,10)
         self.reset <= 1
         await RisingEdge(self.clock)
+    def start_clock(self):
+        cocotb.fork(Clock(self.clock,10,units='ns').start())
     def instruction_read_callback(self, transaction):
         if transaction.type == "request":
             section_start = self.elf['.text']['addr']
@@ -42,12 +45,13 @@ class Testbench():
                     addr = transaction.addr,
                 )
             self.bus_ir_driver.append(driver_transaction)
+    def finish(self):
+        return len(self.expected_reg_file) == 0
 
 @cocotb.test()
 async def basic_test(tb_wrapper):
     tb_wrapper.test_name <= verilog_string(get_test_name())
     SimLog("cocotb").setLevel(logging.DEBUG)
-    tb_wrapper._log.info("Running test...")
     clock = tb_wrapper.clock
     reset = tb_wrapper.reset
 
@@ -59,17 +63,15 @@ async def basic_test(tb_wrapper):
     expected_reg_file = [
         "t0 0x1000",
     ]
-    expected_data_mem = []
-    expected_alu = []
-    elf = compile_test(instructions, tb_wrapper._log)
-    expected_reg_file = [RegFileWriteTransaction.from_string(t) for t in expected_reg_file]
+    #expected_data_mem = []
+    #expected_alu = []
 
-    tb = Testbench(tb_wrapper, clock, reset, elf)
+    elf = compile_test(instructions)
+    tb = Testbench(tb_wrapper, clock, reset, elf, expected_reg_file)
+
+    tb.start_clock()
     await tb.do_reset()
-    tb.scoreboard.add_interface(tb.regfile_monitor, expected_reg_file)
 
-    while len(expected_reg_file) > 0:
+    while not tb.finish():
         await RisingEdge(clock)
     await ClockCycles(clock,20)
-
-    tb_wrapper._log.info("Running test...done")

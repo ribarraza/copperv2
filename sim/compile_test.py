@@ -1,6 +1,9 @@
 import subprocess
 from pathlib import Path
+
+from cocotb.log import SimLog
 from elftools.elf.elffile import ELFFile
+
 from utils import get_test_name
 
 linker_script_content = """
@@ -18,7 +21,8 @@ SECTIONS
 linker_script = Path('linker.ld')
 linker_script.write_text(linker_script_content)
 
-def compile_test(instructions,log):
+def compile_test(instructions):
+    log = SimLog("cocotb.copperv2.compile_test")
     test_s = Path(get_test_name()).with_suffix('.S')
     test_elf = Path(get_test_name()).with_suffix('.elf')
     test_s.write_text('\n'.join(instructions) + '\n')
