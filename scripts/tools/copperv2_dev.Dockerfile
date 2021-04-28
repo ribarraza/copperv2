@@ -30,6 +30,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # cocotb
-RUN pip install --no-cache-dir cocotb cocotb-coverage pytest remote_pdb pyelftools
+RUN pip install --no-cache-dir cocotb cocotb-coverage pytest remote_pdb pyelftools pylint
 
 WORKDIR /container
