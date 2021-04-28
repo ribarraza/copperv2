@@ -6,7 +6,7 @@ from cocotb.log import SimLog
 
 from testbench import Testbench
 from riscv_utils import compile_test
-from utils import verilog_string, get_test_name
+from cocotb_utils import verilog_string, get_test_name
 
 
 @cocotb.test()

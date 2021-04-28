@@ -4,7 +4,7 @@ from pathlib import Path
 from cocotb.log import SimLog
 from elftools.elf.elffile import ELFFile
 
-from utils import get_test_name
+from cocotb_utils import get_test_name
 
 linker_script_content = """
 OUTPUT_ARCH("riscv")
