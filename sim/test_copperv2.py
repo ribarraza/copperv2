@@ -5,7 +5,7 @@ from cocotb.triggers import RisingEdge, ClockCycles
 from cocotb.log import SimLog
 
 from testbench import Testbench
-from compile_test import compile_test
+from riscv_utils import compile_test
 from utils import verilog_string, get_test_name
 
 
