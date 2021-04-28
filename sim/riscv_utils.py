@@ -45,6 +45,11 @@ def compile_test(instructions):
     log.debug(f"elf: {elf}")
     return elf
 
+crt0 = [
+    ".global _start",
+    "_start:",
+]
+
 abi_map = {
     "zero":0,
     "ra":1,
