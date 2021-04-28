@@ -1,13 +1,9 @@
 import dataclasses
 import re
 
-import cocotb
-from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, ReadOnly, ClockCycles, NextTimeStep
-from cocotb_bus.monitors import Monitor, BusMonitor
-from cocotb_bus.drivers import BusDriver
+from cocotb.triggers import RisingEdge, ReadOnly
+from cocotb_bus.monitors import Monitor
 from cocotb.log import SimLog
-from cocotb_bus.scoreboard import Scoreboard
 
 from riscv_utils import abi_map
 

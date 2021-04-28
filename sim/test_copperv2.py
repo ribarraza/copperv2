@@ -1,11 +1,8 @@
-import ctypes
 import logging
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, ReadOnly, ClockCycles, NextTimeStep
-from cocotb_bus.monitors import Monitor, BusMonitor
-from cocotb_bus.drivers import BusDriver
+from cocotb.triggers import RisingEdge, ClockCycles
 from cocotb.log import SimLog
 from cocotb_bus.scoreboard import Scoreboard
 
@@ -27,9 +24,9 @@ class Testbench():
         self.regfile_monitor = RegFileWriteMonitor(tb_wrapper.dut, self.clock)
         self.scoreboard = Scoreboard(tb_wrapper.dut)
     async def do_reset(self):
-        self.reset <= 0;
+        self.reset <= 0
         await ClockCycles(self.clock,10)
-        self.reset <= 1;
+        self.reset <= 1
         await RisingEdge(self.clock)
     def instruction_read_callback(self, transaction):
         if transaction.type == "request":
@@ -51,7 +48,6 @@ async def basic_test(tb_wrapper):
     tb_wrapper.test_name <= verilog_string(get_test_name())
     SimLog("cocotb").setLevel(logging.DEBUG)
     tb_wrapper._log.info("Running test...")
-    dut = tb_wrapper.dut
     clock = tb_wrapper.clock
     reset = tb_wrapper.reset
 
@@ -77,4 +73,3 @@ async def basic_test(tb_wrapper):
     await ClockCycles(clock,20)
 
     tb_wrapper._log.info("Running test...done")
-
