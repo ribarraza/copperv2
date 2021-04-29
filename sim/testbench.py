@@ -7,16 +7,25 @@ from bus import ReadBusMonitor, ReadBusSourceDriver, ReadTransaction
 from regfile import RegFileWriteMonitor, RegFileWriteTransaction
 
 class Testbench():
-    def __init__(self, tb_wrapper, clock, reset, elf, expected_reg_file):
-        self.clock = clock
-        self.reset = reset
+    def __init__(self, dut, elf, expected_reg_file):
+        self.clock = dut.clk
+        self.reset = dut.rst
+        ir_bind = dict(
+            clock = self.clock,
+            addr_valid = dut.ir_addr_valid,
+            addr_ready = dut.ir_addr_ready,
+            addr = dut.ir_addr,
+            data_valid = dut.ir_data_valid,
+            data_ready = dut.ir_data_ready,
+            data = dut.ir_data,
+        )
         self.elf = elf
         self.reset.setimmediatevalue(0)
-        self.bus_ir_driver = ReadBusSourceDriver(tb_wrapper, "bus_ir", self.clock)
-        self.bus_ir_monitor = ReadBusMonitor(tb_wrapper, "bus_ir", self.clock,
+        self.bus_ir_driver = ReadBusSourceDriver("bus_ir", ir_bind)
+        self.bus_ir_monitor = ReadBusMonitor("bus_ir", ir_bind,
             callback=self.instruction_read_callback, reset = self.reset)
-        self.regfile_monitor = RegFileWriteMonitor(tb_wrapper.dut, self.clock)
-        self.scoreboard = Scoreboard(tb_wrapper.dut)
+        self.regfile_monitor = RegFileWriteMonitor(dut, self.clock)
+        self.scoreboard = Scoreboard(dut)
         self.expected_reg_file = [RegFileWriteTransaction.from_string(t) for t in expected_reg_file]
         self.scoreboard.add_interface(self.regfile_monitor, self.expected_reg_file)
     async def do_reset(self):

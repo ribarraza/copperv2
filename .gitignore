@@ -1,7 +1,8 @@
 ### Project Specific stuff
 scripts/tools/build.sh
 test_run_dir/*
-work/*
+work/
+etc/
 ### XilinxISE template
 # intermediate build files
 *.bgn
