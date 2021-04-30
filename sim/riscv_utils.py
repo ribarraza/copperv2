@@ -50,7 +50,7 @@ crt0 = [
     "_start:",
 ]
 
-abi_map = {
+reg_abi_map = {
     "zero":0,
     "ra":1,
     "sp":2,

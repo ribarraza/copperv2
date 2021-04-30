@@ -5,7 +5,7 @@ from cocotb.triggers import RisingEdge, ReadOnly
 from cocotb_bus.monitors import Monitor
 from cocotb.log import SimLog
 
-from riscv_utils import abi_map
+from riscv_utils import reg_abi_map
 
 @dataclasses.dataclass
 class RegFileWriteTransaction:
@@ -14,7 +14,7 @@ class RegFileWriteTransaction:
     @classmethod
     def from_string(cls, string):
         reg, value = re.split('\s+',string)
-        return cls(abi_map[reg],int(value,0))
+        return cls(reg_abi_map[reg],int(value,0))
 
 class RegFileWriteMonitor(Monitor):
     def __init__(self, dut, clock, callback=None, event=None):
