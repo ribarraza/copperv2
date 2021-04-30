@@ -62,6 +62,8 @@ parser.add_argument('-chisel', action='store_true',
                     help='Launch chisel interactive shell (sbt)')
 parser.add_argument('-cocotb_reduced', action='store_true',
                     help='Launch cocotb in reduced log mode')
+parser.add_argument('-cocotb_debug', action='store_true',
+                    help='Launch cocotb in debug log mode')
 parser.add_argument('-pylint', action='store_true',
                     help='Lint Python testbench')
 
@@ -81,6 +83,9 @@ if args.chisel:
 if args.pylint:
     run("pylint sim/*.py",default_run_opts,'pylint')
     sys.exit(0)
+
+if args.cocotb_debug:
+    default_run_opts['env']["COCOTB_LOG_LEVEL"] = "DEBUG"
 
 if args.cocotb_reduced:
     default_run_opts['env']["COCOTB_REDUCED_LOG_FMT"] = "1"
