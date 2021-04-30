@@ -25,6 +25,9 @@ ifeq ($(WAVES), 1)
 	COMPILE_ARGS += -s iverilog_dump
 endif
 
+ifeq ($(DEBUG_TEST), 1)
+	PLUSARGS = +debug_test
+endif
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
 

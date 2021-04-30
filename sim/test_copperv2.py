@@ -25,10 +25,13 @@ class TestParameters:
 @cocotb.coroutine
 async def basic_test(dut, params):
     """ Copperv2 base test """
+    test_name = f"{get_test_name()}_{params.name}"
+    dut._log.info(f"Test {test_name} started")
 
     iverilog_dump = get_top_module("iverilog_dump")
-    iverilog_dump.test_name <= verilog_string(get_test_name())
-    SimLog("cocotb").setLevel(logging.DEBUG)
+    iverilog_dump.test_name <= verilog_string(test_name)
+    if 'debug_test' in cocotb.plusargs:
+        SimLog("cocotb").setLevel(logging.DEBUG)
 
     elf = compile_test(crt0 + params.instructions)
     tb = Testbench(dut, elf, params)
@@ -39,6 +42,8 @@ async def basic_test(dut, params):
     while not tb.finish():
         await RisingEdge(tb.clock)
     await ClockCycles(tb.clock,20)
+
+    dut._log.info(f"Test {test_name} finished")
 
 tf = TestFactory(test_function=basic_test)
 tf.add_option('params', [

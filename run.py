@@ -85,7 +85,7 @@ if args.pylint:
     sys.exit(0)
 
 if args.cocotb_debug:
-    default_run_opts['env']["COCOTB_LOG_LEVEL"] = "DEBUG"
+    default_run_opts['env']["DEBUG_TEST"] = "1"
 
 if args.cocotb_reduced:
     default_run_opts['env']["COCOTB_REDUCED_LOG_FMT"] = "1"
