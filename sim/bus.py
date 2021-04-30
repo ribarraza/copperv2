@@ -2,7 +2,7 @@ import dataclasses
 
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep
 
-from cocotb_utils import BusMonitor2, BusDriver2
+from cocotb_utils import BundleMonitor, BundleDriver, wait_for_signal
 
 @dataclasses.dataclass
 class ReadTransaction:
@@ -10,7 +10,7 @@ class ReadTransaction:
     addr: int = 0
     type: str = "full"
 
-class ReadBusMonitor(BusMonitor2):
+class ReadBusMonitor(BundleMonitor):
     _signals = [
         "clock",
         "addr_ready",
@@ -42,7 +42,7 @@ class ReadBusMonitor(BusMonitor2):
                 self._recv(transaction)
                 transaction = None
 
-class ReadBusSourceDriver(BusDriver2):
+class ReadBusSourceDriver(BundleDriver):
     _signals = [
         "clock",
         "addr_ready",
@@ -60,7 +60,7 @@ class ReadBusSourceDriver(BusDriver2):
     async def _driver_send(self, transaction: ReadTransaction, sync: bool = True):
         self.log.debug("Responding read transaction: %s", transaction)
         if transaction.type == "full":
-            await self._wait_for_signal(self.bus.data_ready)
+            await wait_for_signal(self.bus.data_ready)
             await RisingEdge(self.bus.clock)
             self.bus.data_valid <= 1
             self.bus.data <= transaction.data

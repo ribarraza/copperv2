@@ -4,18 +4,18 @@ import cocotb
 from cocotb_bus.monitors import BusMonitor, Monitor
 from cocotb_bus.drivers import BusDriver, Driver
 from cocotb.log import SimLog
+from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, FallingEdge
 
-class Bus2(SimpleNamespace):
+class Bundle(SimpleNamespace):
     def __contains__(self, signal):
         return signal in self.__dict__
 
-class ReusableBus:
-    """Abstract class providing common functionality for bus agents with enhanced re usability."""
+class BundleAgent:
     _signals = []
     _optional_signals = []
     def __init__(self, name, bind):
         self.name = name
-        self.bus = Bus2(**self.validate_map(bind))
+        self.bus = Bundle(**self.validate_map(bind))
         self.log = SimLog(f"cocotb.{self}")
     def validate_map(self, _map):
         for virtual_signal in self._signals:
@@ -25,19 +25,27 @@ class ReusableBus:
             if not actual_signal in self._signals and not actual_signal in self._optional_signals:
                 raise ValueError(f'Cannot bind "{actual_signal}"')
         return dict(_map)
+    def __str__(self):
+        return f"{type(self).__qualname__}({self.name})"
 
-class BusMonitor2(ReusableBus,BusMonitor):
-    """Wrapper providing common functionality for monitoring buses with enhanced re usability."""
+class BundleMonitor(BundleAgent, Monitor):
     def __init__(self, name, bind, reset = None, reset_n = None, callback = None, event = None):
         self._reset = reset
         self._reset_n = reset_n
-        ReusableBus.__init__(self, name=name, bind=bind)
+        BundleAgent.__init__(self, name=name, bind=bind)
         Monitor.__init__(self, callback=callback, event=event)
+    @property
+    def in_reset(self):
+        """Boolean flag showing whether the bus is in reset state or not."""
+        if self._reset_n is not None:
+            return not bool(self._reset_n.value.integer)
+        if self._reset is not None:
+            return bool(self._reset.value.integer)
+        return False
 
-class BusDriver2(ReusableBus,BusDriver):
-    """Wrapper providing common functionality for driving buses with enhanced re usability."""
+class BundleDriver(BundleAgent, Driver):
     def __init__(self, name, bind):
-        ReusableBus.__init__(self, name=name, bind=bind)
+        BundleAgent.__init__(self, name=name, bind=bind)
         Driver.__init__(self)
 
 def get_top_module(name):
@@ -48,3 +56,19 @@ def verilog_string(string):
 
 def get_test_name():
     return cocotb.regression_manager._test.__name__ # pylint: disable=protected-access
+
+@cocotb.coroutine
+async def wait_for_signal(signal):
+    await ReadOnly()
+    while signal.value.integer != 1:
+        await RisingEdge(signal)
+        await ReadOnly()
+    await NextTimeStep()
+
+@cocotb.coroutine
+async def wait_for_nsignal(signal):
+    await ReadOnly()
+    while signal.value.integer != 0:
+        await FallingEdge(signal)
+        await ReadOnly()
+    await NextTimeStep()
