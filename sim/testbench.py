@@ -5,7 +5,7 @@ from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, ClockCycles
 
 from bus import ReadBusMonitor, ReadBusSourceDriver, BusReadTransaction, BusWriteTransaction
-from regfile import RegFileWriteMonitor, RegFileTransaction
+from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileTransaction
 
 class Testbench():
     def __init__(self, dut, elf, params):
@@ -31,6 +31,21 @@ class Testbench():
             data_ready = dut.dr_data_ready,
             data = dut.dr_data,
         )
+        regfile_write_bind = dict(
+            clock = self.clock,
+            rd_en = dut.regfile.rd_en,
+            rd_addr = dut.regfile.rd,
+            rd_data = dut.regfile.rd_din,
+        )
+        regfile_read_bind = dict(
+            clock = self.clock,
+            rs1_en = dut.regfile.rs1_en,
+            rs1_addr = dut.regfile.rs1,
+            rs1_data = dut.regfile.rs1_dout,
+            rs2_en = dut.regfile.rs2_en,
+            rs2_addr = dut.regfile.rs2,
+            rs2_data = dut.regfile.rs2_dout,
+        )
         ## Instruction read
         self.elf = elf
         self.bus_ir_driver = ReadBusSourceDriver("bus_ir", ir_bind)
@@ -47,14 +62,16 @@ class Testbench():
         self.bus_dr_req_monitor = ReadBusMonitor("bus_dr_req", dr_bind, request_only=True,
             callback=self.data_read_callback, reset = self.reset)
         ## Regfile
-        self.regfile_monitor = RegFileWriteMonitor(dut, self.clock)
+        self.regfile_write_monitor = RegFileWriteMonitor("regfile_write", regfile_write_bind)
+        self.regfile_read_monitor = RegFileReadMonitor("regfile_read", regfile_read_bind)
         ## Self checking
         self.scoreboard = Scoreboard(dut)
         self.expected_regfile_read = [RegFileTransaction.from_string(t) for t in params.expected_regfile_read]
         self.expected_regfile_write = [RegFileTransaction.from_string(t) for t in params.expected_regfile_write]
         self.expected_data_read = [BusReadTransaction.from_string(t) for t in params.expected_data_read]
         self.expected_data_write = [BusWriteTransaction.from_string(t) for t in params.expected_data_write]
-        self.scoreboard.add_interface(self.regfile_monitor, self.expected_regfile_write)
+        self.scoreboard.add_interface(self.regfile_write_monitor, self.expected_regfile_write)
+        self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read, reorder_depth = 1)
         self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
     async def do_reset(self):
         self.reset <= 0
@@ -88,11 +105,11 @@ class Testbench():
     @cocotb.coroutine
     async def finish(self):
         while True:
-            f = len(self.expected_regfile_read) == 0 \
-                and len(self.expected_regfile_write) == 0 \
-                and len(self.expected_data_read) == 0 \
-                and len(self.expected_data_write) == 0
-            if f:
+            finish = True
+            for expected in self.scoreboard.expected.values():
+                if len(expected) != 0:
+                    finish = False
+            if finish:
                 break
             await RisingEdge(self.clock)
         await ClockCycles(self.clock,20)

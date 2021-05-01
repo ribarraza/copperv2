@@ -56,6 +56,7 @@ tf.add_option('params', [
         name = "addi1",
         instructions=["addi t0, zero, 0x123"],
         expected_regfile_write=["t0 0x123"],
+        expected_regfile_read=["zero 0"],
     ),
     TestParameters(
         name = "add1",
@@ -70,6 +71,8 @@ tf.add_option('params', [
             "t2 46",
         ],
         expected_regfile_read=[
+            "zero 0",
+            "zero 0",
             "t0 12",
             "t1 34",
         ],
@@ -84,7 +87,13 @@ tf.add_option('params', [
             "t0 11",
             "t1 0x123",
         ],
-        expected_data_read=["32 0x123"],
+        expected_regfile_read=[
+            "zero 0",
+            "t0 11",
+        ],
+        expected_data_read=[
+            "32 0x123",
+        ],
         data_memory=["32 0x123"]
     ),
     TestParameters(
@@ -99,7 +108,10 @@ tf.add_option('params', [
             "t1 0x321",
         ],
         expected_regfile_read=[
+            "zero 0",
+            "zero 0",
             "t1 0x321",
+            "t0 9",
         ],
         expected_data_write=[
             "12 0x321 0b1111 1",
