@@ -6,13 +6,24 @@ from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep
 from cocotb_utils import BundleMonitor, BundleDriver, wait_for_signal
 
 @dataclasses.dataclass
-class ReadTransaction:
+class BusReadTransaction:
     data: int = 0
     addr: int = 0
     @classmethod
     def from_string(cls, string):
         addr, data = re.split('\s+',string)
         return cls(int(data,0),int(addr,0))
+
+@dataclasses.dataclass
+class BusWriteTransaction:
+    data: int = 0
+    addr: int = 0
+    strobe: int = 0
+    response: int = 0
+    @classmethod
+    def from_string(cls, string):
+        addr, data, strobe, response = re.split('\s+',string)
+        return cls(int(data,0),int(addr,0),int(strobe,0),int(response,0))
 
 class ReadBusMonitor(BundleMonitor):
     _signals = [
@@ -36,14 +47,14 @@ class ReadBusMonitor(BundleMonitor):
             if self.bus.addr_ready.value and self.bus.addr_valid.value:
                 if not self.request_only:
                     assert transaction is None, f"{self}: Receiving new request before sending response for last request"
-                transaction = ReadTransaction(
+                transaction = BusReadTransaction(
                     addr = int(self.bus.addr.value),
                 )
                 self.log.debug("Receiving read transaction request: %s", transaction)
                 if self.request_only:
                     self._recv(transaction)
             if not self.request_only and transaction is not None and self.bus.data_ready.value and self.bus.data_valid.value:
-                transaction = ReadTransaction(
+                transaction = BusReadTransaction(
                     data = int(self.bus.data.value),
                     addr = transaction.addr,
                 )
@@ -66,9 +77,9 @@ class ReadBusSourceDriver(BundleDriver):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.bus.addr_ready <= 1
-    async def _driver_send(self, transaction: ReadTransaction, sync: bool = True):
+    async def _driver_send(self, transaction: BusReadTransaction, sync: bool = True):
         self.log.debug("Responding read transaction: %s", transaction)
-        if isinstance(transaction, ReadTransaction):
+        if isinstance(transaction, BusReadTransaction):
             await wait_for_signal(self.bus.data_ready)
             await RisingEdge(self.bus.clock)
             self.bus.data_valid <= 1

@@ -8,7 +8,7 @@ from cocotb.log import SimLog
 from riscv_utils import reg_abi_map
 
 @dataclasses.dataclass
-class RegFileWriteTransaction:
+class RegFileTransaction:
     reg: int = 0
     data: int = 0
     @classmethod
@@ -31,7 +31,7 @@ class RegFileWriteMonitor(Monitor):
             await RisingEdge(self.clock)
             await ReadOnly()
             if self.rd_en.value:
-                transaction = RegFileWriteTransaction(
+                transaction = RegFileTransaction(
                     reg = int(self.rd.value),
                     data = int(self.rd_din.value),
                 )

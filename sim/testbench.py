@@ -4,8 +4,8 @@ from cocotb_bus.scoreboard import Scoreboard
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, ClockCycles
 
-from bus import ReadBusMonitor, ReadBusSourceDriver, ReadTransaction
-from regfile import RegFileWriteMonitor, RegFileWriteTransaction
+from bus import ReadBusMonitor, ReadBusSourceDriver, BusReadTransaction, BusWriteTransaction
+from regfile import RegFileWriteMonitor, RegFileTransaction
 
 class Testbench():
     def __init__(self, dut, elf, params):
@@ -40,7 +40,7 @@ class Testbench():
         ## Data read
         self.data_memory = {}
         for t in params.data_memory:
-            t = ReadTransaction.from_string(t)
+            t = BusReadTransaction.from_string(t)
             self.data_memory[t.addr] = t.data
         self.bus_dr_driver = ReadBusSourceDriver("bus_dr", dr_bind)
         self.bus_dr_monitor = ReadBusMonitor("bus_dr", dr_bind, reset = self.reset)
@@ -50,9 +50,11 @@ class Testbench():
         self.regfile_monitor = RegFileWriteMonitor(dut, self.clock)
         ## Self checking
         self.scoreboard = Scoreboard(dut)
-        self.expected_regfile = [RegFileWriteTransaction.from_string(t) for t in params.expected_regfile]
-        self.expected_data_read = [ReadTransaction.from_string(t) for t in params.expected_data_read]
-        self.scoreboard.add_interface(self.regfile_monitor, self.expected_regfile)
+        self.expected_regfile_read = [RegFileTransaction.from_string(t) for t in params.expected_regfile_read]
+        self.expected_regfile_write = [RegFileTransaction.from_string(t) for t in params.expected_regfile_write]
+        self.expected_data_read = [BusReadTransaction.from_string(t) for t in params.expected_data_read]
+        self.expected_data_write = [BusWriteTransaction.from_string(t) for t in params.expected_data_write]
+        self.scoreboard.add_interface(self.regfile_monitor, self.expected_regfile_write)
         self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
     async def do_reset(self):
         self.reset <= 0
@@ -65,7 +67,7 @@ class Testbench():
         addr = transaction.addr
         self.log.debug(f"Data memory: {self.data_memory}")
         assert addr in self.data_memory, f"Invalid data address: 0x{addr:X}"
-        driver_transaction = ReadTransaction(
+        driver_transaction = BusReadTransaction(
             data = self.data_memory[addr],
             addr = addr,
         )
@@ -78,10 +80,19 @@ class Testbench():
         if transaction.addr < section_start + section_size:
             assert section_start <= transaction.addr < section_start + section_size, "Reading invalid address"
             addr = transaction.addr - section_start
-            driver_transaction = ReadTransaction(
+            driver_transaction = BusReadTransaction(
                 data = int.from_bytes(section_data[addr:addr+4],byteorder='little'),
                 addr = transaction.addr,
             )
         self.bus_ir_driver.append(driver_transaction)
-    def finish(self):
-        return len(self.expected_regfile) == 0 and len(self.expected_data_read) == 0
+    @cocotb.coroutine
+    async def finish(self):
+        while True:
+            f = len(self.expected_regfile_read) == 0 \
+                and len(self.expected_regfile_write) == 0 \
+                and len(self.expected_data_read) == 0 \
+                and len(self.expected_data_write) == 0
+            if f:
+                break
+            await RisingEdge(self.clock)
+        await ClockCycles(self.clock,20)
