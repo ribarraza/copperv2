@@ -11,10 +11,10 @@ from riscv_utils import compile_test, crt0
 class TBConfig:
     def __init__(self, dut):
         self.dut = dut
-        self.clock = dut.clk
-        self.reset = dut.rst
         self.copperv1_bind()
     def copperv1_bind(self):
+        self.clock = self.dut.clk
+        self.reset = self.dut.rst
         self.ir_bind = dict(
             clock = self.clock,
             addr_valid = self.dut.ir_addr_valid,
@@ -78,13 +78,6 @@ class Testbench():
         self.scoreboard.add_interface(self.regfile_write_monitor, self.expected_regfile_write)
         self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read)
         self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
-    async def do_reset(self):
-        self.reset <= 0
-        await ClockCycles(self.clock,10)
-        self.reset <= 1
-        await RisingEdge(self.clock)
-    def start_clock(self):
-        cocotb.fork(Clock(self.clock,10,units='ns').start())
     def data_read_callback(self, data_memory_strings):
         # parse data memory in string format
         data_memory = {}
@@ -117,6 +110,13 @@ class Testbench():
                 )
             self.bus_ir_driver.append(driver_transaction)
         return callback
+    def start_clock(self):
+        cocotb.fork(Clock(self.clock,10,units='ns').start())
+    async def do_reset(self):
+        self.reset <= 0
+        await ClockCycles(self.clock,10)
+        self.reset <= 1
+        await RisingEdge(self.clock)
     @cocotb.coroutine
     async def finish(self):
         last_pending = ""
