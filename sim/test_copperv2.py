@@ -78,6 +78,25 @@ tf.add_option('params', [
         ],
     ),
     TestParameters(
+        name = "add2",
+        instructions=[
+            "addi t0, zero, 12",
+            "addi t1, zero, 34",
+            "add t2, t0, t1",
+        ],
+        expected_regfile_write=[
+            "t0 12",
+            "t1 34",
+            "t2 46",
+        ],
+        expected_regfile_read=[
+            "zero 0",
+            "zero 0",
+            "t1 34",
+            "t0 12",
+        ],
+    ),
+    TestParameters(
         name = "lw1",
         instructions=[
             "addi t0, zero, 11",
@@ -116,6 +135,54 @@ tf.add_option('params', [
         expected_data_write=[
             "12 0x321 0b1111 1",
         ]
+    ),
+    TestParameters(
+        name = "beq1_no_take",
+        instructions=[
+            "addi t0, zero, 9",
+            "addi t1, zero, 0x321",
+            "beq t0, t1, here",
+            "addi t2, zero, 0x11",
+            "here:",
+            "addi t3, zero, 0x22",
+        ],
+        expected_regfile_write=[
+            "t0 9",
+            "t1 0x321",
+            "t2 0x11",
+            "t3 0x22",
+        ],
+        expected_regfile_read=[
+            "zero 0",
+            "zero 0",
+            "t0 9",
+            "t1 0x321",
+            "zero 0",
+            "zero 0",
+        ],
+    ),
+    TestParameters(
+        name = "beq1_take",
+        instructions=[
+            "addi t0, zero, 9",
+            "addi t1, zero, 9",
+            "beq t0, t1, here",
+            "addi t2, zero, 0x11",
+            "here:",
+            "addi t3, zero, 0x22",
+        ],
+        expected_regfile_write=[
+            "t0 9",
+            "t1 9",
+            "t3 0x22",
+        ],
+        expected_regfile_read=[
+            "zero 0",
+            "zero 0",
+            "t0 9",
+            "t1 9",
+            "zero 0",
+        ],
     ),
 ])
 tf.generate_tests()
