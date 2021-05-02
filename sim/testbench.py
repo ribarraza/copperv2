@@ -104,6 +104,7 @@ class Testbench():
         self.bus_ir_driver.append(driver_transaction)
     @cocotb.coroutine
     async def finish(self):
+        last_pending = ""
         while True:
             finish = True
             for expected in self.scoreboard.expected.values():
@@ -111,5 +112,9 @@ class Testbench():
                     finish = False
             if finish:
                 break
+            pending = repr({k.name:v for k,v in self.scoreboard.expected.items()})
+            if last_pending != pending:
+                self.log.debug(f"Pending transactions: {pending}")
+            last_pending = pending
             await RisingEdge(self.clock)
         await ClockCycles(self.clock,20)

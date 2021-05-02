@@ -179,5 +179,54 @@ tf.add_option('params', [
             "zero 0",
         ],
     ),
+    TestParameters(
+        name = "jal1",
+        instructions=[
+            "jal t1, here",
+            "addi t2, zero, 0x11",
+            "here:",
+            "addi t3, zero, 0x22",
+        ],
+        expected_regfile_write=[
+            "t1 4",
+            "t3 0x22",
+        ],
+        expected_regfile_read=[
+            "zero 0",
+        ],
+    ),
+    TestParameters(
+        name = "jalr1",
+        instructions=[
+            "addi t0, zero, 4",    # 0
+            "jalr t1, 8(t0)",      # 4
+            "addi t2, zero, 0x11", # 8
+            "addi t3, zero, 0x22", # 12
+        ],
+        expected_regfile_write=[
+            "t0 4",
+            "t1 8",
+            "t3 0x22",
+        ],
+        expected_regfile_read=[
+            "zero 0",
+            "t0 4",
+            "zero 0",
+        ],
+    ),
+    TestParameters(
+        name = "auipc1",
+        instructions=[
+            "addi zero, zero, 0", # 0
+            "auipc t1, 8",        # 4
+        ],
+        expected_regfile_write=[
+            "zero 0",
+            "t1 0x8004",
+        ],
+        expected_regfile_read=[
+            "zero 0",
+        ],
+    ),
 ])
 tf.generate_tests()
