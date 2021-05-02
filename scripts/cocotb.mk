@@ -16,8 +16,9 @@ ifneq ($(DUT_COPPERV1),1)
 	VERILOG_SOURCES += $(ROOT)/work/chisel/Copperv2.v
 else
 	TOPLEVEL = copperv
-	VERILOG_SOURCES += $(wildcard $(ROOT)/rtl_v1/*.v)
-	COMPILE_ARGS += -I$(ROOT)/rtl_v1/include
+	RTL_V1_DIR = $(ROOT)/src/main/resources/rtl_v1
+	VERILOG_SOURCES += $(wildcard $(RTL_V1_DIR)/*.v)
+	COMPILE_ARGS += -I$(RTL_V1_DIR)/include
 endif
 
 ifeq ($(WAVES), 1)
