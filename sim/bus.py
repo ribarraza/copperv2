@@ -1,9 +1,8 @@
 import dataclasses
-import re
 
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep
 
-from cocotb_utils import BundleMonitor, BundleDriver, wait_for_signal
+from cocotb_utils import BundleMonitor, BundleDriver, wait_for_signal, lex
 
 @dataclasses.dataclass
 class BusReadTransaction:
@@ -11,7 +10,7 @@ class BusReadTransaction:
     addr: int = 0
     @classmethod
     def from_string(cls, string):
-        addr, data = re.split('\s+',string)
+        addr, data = lex(string)
         return cls(int(data,0),int(addr,0))
 
 @dataclasses.dataclass
@@ -22,7 +21,7 @@ class BusWriteTransaction:
     response: int = 0
     @classmethod
     def from_string(cls, string):
-        addr, data, strobe, response = re.split('\s+',string)
+        addr, data, strobe, response = lex(string)
         return cls(int(data,0),int(addr,0),int(strobe,0),int(response,0))
 
 class ReadBusMonitor(BundleMonitor):

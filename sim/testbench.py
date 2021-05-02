@@ -5,7 +5,7 @@ from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, ClockCycles
 
 from bus import ReadBusMonitor, ReadBusSourceDriver, BusReadTransaction, BusWriteTransaction
-from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileTransaction
+from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransaction, RegFileWriteTransaction
 
 class Testbench():
     def __init__(self, dut, elf, params):
@@ -66,12 +66,12 @@ class Testbench():
         self.regfile_read_monitor = RegFileReadMonitor("regfile_read", regfile_read_bind)
         ## Self checking
         self.scoreboard = Scoreboard(dut)
-        self.expected_regfile_read = [RegFileTransaction.from_string(t) for t in params.expected_regfile_read]
-        self.expected_regfile_write = [RegFileTransaction.from_string(t) for t in params.expected_regfile_write]
+        self.expected_regfile_read = [RegFileReadTransaction.from_string(t) for t in params.expected_regfile_read]
+        self.expected_regfile_write = [RegFileWriteTransaction.from_string(t) for t in params.expected_regfile_write]
         self.expected_data_read = [BusReadTransaction.from_string(t) for t in params.expected_data_read]
         self.expected_data_write = [BusWriteTransaction.from_string(t) for t in params.expected_data_write]
         self.scoreboard.add_interface(self.regfile_write_monitor, self.expected_regfile_write)
-        self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read, reorder_depth = 1)
+        self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read)
         self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
     async def do_reset(self):
         self.reset <= 0

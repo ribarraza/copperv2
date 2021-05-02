@@ -1,22 +1,41 @@
 import dataclasses
-import re
 
 import cocotb
 from cocotb.triggers import RisingEdge, ReadOnly, Combine
 from cocotb_bus.monitors import Monitor
 from cocotb.log import SimLog
-from cocotb_utils import BundleMonitor
+from cocotb_utils import BundleMonitor, lex
 
 from riscv_utils import reg_abi_map
 
 @dataclasses.dataclass
-class RegFileTransaction:
+class RegFileWriteTransaction:
     reg: int = 0
     data: int = 0
     @classmethod
     def from_string(cls, string):
-        reg, value = re.split('\s+',string)
+        tokens = lex(string)
+        reg, value = tokens
         return cls(reg_abi_map[reg],int(value,0))
+
+@dataclasses.dataclass
+class RegFileReadTransaction:
+    reg1: int = 0
+    data1: int = 0
+    reg2: int = 0
+    data2: int = 0
+    @classmethod
+    def from_string(cls, string):
+        tokens = lex(string)
+        if len(tokens) == 2:
+            reg, value = tokens
+            return cls(reg_abi_map[reg],int(value,0))
+        elif len(tokens) == 4:
+            reg1, value1, reg2, value2 = tokens
+            return cls(reg_abi_map[reg1],int(value1,0)
+                    ,reg_abi_map[reg2],int(value2,0))
+        else:
+            ValueError("Invalid transaction")
 
 class RegFileWriteMonitor(BundleMonitor):
     _signals = [
@@ -30,7 +49,7 @@ class RegFileWriteMonitor(BundleMonitor):
             await RisingEdge(self.signals.clock)
             await ReadOnly()
             if self.signals.rd_en.value:
-                transaction = RegFileTransaction(
+                transaction = RegFileWriteTransaction(
                     reg = int(self.signals.rd_addr.value),
                     data = int(self.signals.rd_data.value),
                 )
@@ -48,32 +67,35 @@ class RegFileReadMonitor(BundleMonitor):
         'rs2_data'
     ]
     async def _monitor_recv(self):
-        mon1 = cocotb.fork(self.rs1_monitor_recv())
-        mon2 = cocotb.fork(self.rs2_monitor_recv())
-        await Combine(mon1,mon2)
-    async def rs1_monitor_recv(self):
         while True:
             await RisingEdge(self.signals.clock)
             await ReadOnly()
-            if self.signals.rs1_en.value:
+            if self.signals.rs1_en.value and self.signals.rs2_en.value:
                 await RisingEdge(self.signals.clock)
                 await ReadOnly()
-                transaction = RegFileTransaction(
-                    reg = int(self.signals.rs1_addr.value),
-                    data = int(self.signals.rs1_data.value),
+                transaction = RegFileReadTransaction(
+                    reg1 = int(self.signals.rs1_addr.value),
+                    data1 = int(self.signals.rs1_data.value),
+                    reg2 = int(self.signals.rs2_addr.value),
+                    data2 = int(self.signals.rs2_data.value),
                 )
                 self.log.debug("Receiving register file read transaction: %s", transaction)
                 self._recv(transaction)
-    async def rs2_monitor_recv(self):
-        while True:
-            await RisingEdge(self.signals.clock)
-            await ReadOnly()
-            if self.signals.rs2_en.value:
+            elif self.signals.rs1_en.value:
                 await RisingEdge(self.signals.clock)
                 await ReadOnly()
-                transaction = RegFileTransaction(
-                    reg = int(self.signals.rs2_addr.value),
-                    data = int(self.signals.rs2_data.value),
+                transaction = RegFileReadTransaction(
+                    reg1 = int(self.signals.rs1_addr.value),
+                    data1 = int(self.signals.rs1_data.value),
+                )
+                self.log.debug("Receiving register file read transaction: %s", transaction)
+                self._recv(transaction)
+            elif self.signals.rs2_en.value:
+                await RisingEdge(self.signals.clock)
+                await ReadOnly()
+                transaction = RegFileReadTransaction(
+                    reg1 = int(self.signals.rs2_addr.value),
+                    data1 = int(self.signals.rs2_data.value),
                 )
                 self.log.debug("Receiving register file read transaction: %s", transaction)
                 self._recv(transaction)

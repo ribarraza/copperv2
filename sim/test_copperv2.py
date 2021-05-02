@@ -73,8 +73,7 @@ tf.add_option('params', [
         expected_regfile_read=[
             "zero 0",
             "zero 0",
-            "t0 12",
-            "t1 34",
+            "t0 12 t1 34",
         ],
     ),
     TestParameters(
@@ -92,8 +91,7 @@ tf.add_option('params', [
         expected_regfile_read=[
             "zero 0",
             "zero 0",
-            "t1 34",
-            "t0 12",
+            "t0 12 t1 34",
         ],
     ),
     TestParameters(
@@ -129,8 +127,7 @@ tf.add_option('params', [
         expected_regfile_read=[
             "zero 0",
             "zero 0",
-            "t1 0x321",
-            "t0 9",
+            "t0 9 t1 0x321",
         ],
         expected_data_write=[
             "12 0x321 0b1111 1",
@@ -155,8 +152,7 @@ tf.add_option('params', [
         expected_regfile_read=[
             "zero 0",
             "zero 0",
-            "t0 9",
-            "t1 0x321",
+            "t0 9 t1 0x321",
             "zero 0",
             "zero 0",
         ],
@@ -179,8 +175,7 @@ tf.add_option('params', [
         expected_regfile_read=[
             "zero 0",
             "zero 0",
-            "t0 9",
-            "t1 9",
+            "t0 9 t1 9",
             "zero 0",
         ],
     ),

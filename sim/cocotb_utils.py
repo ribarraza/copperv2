@@ -1,10 +1,15 @@
 from types import SimpleNamespace
+import re
 
 import cocotb
 from cocotb_bus.monitors import BusMonitor, Monitor
 from cocotb_bus.drivers import BusDriver, Driver
 from cocotb.log import SimLog
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, FallingEdge
+
+split_re = re.compile('\s+')
+def lex(string):
+    return split_re.split(string.strip())
 
 class Bundle(SimpleNamespace):
     def __contains__(self, signal):
