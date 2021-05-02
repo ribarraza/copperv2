@@ -42,20 +42,20 @@ class ReadBusMonitor(BundleMonitor):
     async def _monitor_recv(self):
         transaction = None
         while True:
-            await RisingEdge(self.bus.clock)
+            await RisingEdge(self.signals.clock)
             await ReadOnly()
-            if self.bus.addr_ready.value and self.bus.addr_valid.value:
+            if self.signals.addr_ready.value and self.signals.addr_valid.value:
                 if not self.request_only:
                     assert transaction is None, f"{self}: Receiving new request before sending response for last request"
                 transaction = BusReadTransaction(
-                    addr = int(self.bus.addr.value),
+                    addr = int(self.signals.addr.value),
                 )
                 self.log.debug("Receiving read transaction request: %s", transaction)
                 if self.request_only:
                     self._recv(transaction)
-            if not self.request_only and transaction is not None and self.bus.data_ready.value and self.bus.data_valid.value:
+            if not self.request_only and transaction is not None and self.signals.data_ready.value and self.signals.data_valid.value:
                 transaction = BusReadTransaction(
-                    data = int(self.bus.data.value),
+                    data = int(self.signals.data.value),
                     addr = transaction.addr,
                 )
                 self.log.debug("Receiving full read transaction: %s", transaction)
@@ -76,16 +76,16 @@ class ReadBusSourceDriver(BundleDriver):
     ]
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
-        self.bus.addr_ready <= 1
+        self.signals.addr_ready <= 1
     async def _driver_send(self, transaction: BusReadTransaction, sync: bool = True):
         self.log.debug("Responding read transaction: %s", transaction)
         if isinstance(transaction, BusReadTransaction):
-            await wait_for_signal(self.bus.data_ready)
-            await RisingEdge(self.bus.clock)
-            self.bus.data_valid <= 1
-            self.bus.data <= transaction.data
-            await RisingEdge(self.bus.clock)
-            self.bus.data_valid <= 0
+            await wait_for_signal(self.signals.data_ready)
+            await RisingEdge(self.signals.clock)
+            self.signals.data_valid <= 1
+            self.signals.data <= transaction.data
+            await RisingEdge(self.signals.clock)
+            self.signals.data_valid <= 0
         elif transaction == "deassert_ready":
             await NextTimeStep()
-            self.bus.addr_ready <= 0
+            self.signals.addr_ready <= 0

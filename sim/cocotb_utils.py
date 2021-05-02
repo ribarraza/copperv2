@@ -15,7 +15,7 @@ class BundleAgent:
     _optional_signals = []
     def __init__(self, name, bind):
         self.name = name
-        self.bus = Bundle(**self.validate_map(bind))
+        self.signals = Bundle(**self.validate_map(bind))
         self.log = SimLog(f"cocotb.{self}")
     def validate_map(self, _map):
         for virtual_signal in self._signals:
@@ -36,7 +36,6 @@ class BundleMonitor(BundleAgent, Monitor):
         Monitor.__init__(self, callback=callback, event=event)
     @property
     def in_reset(self):
-        """Boolean flag showing whether the bus is in reset state or not."""
         if self._reset_n is not None:
             return not bool(self._reset_n.value.integer)
         if self._reset is not None:
