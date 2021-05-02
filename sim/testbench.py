@@ -6,6 +6,7 @@ from cocotb.triggers import RisingEdge, ClockCycles
 
 from bus import ReadBusMonitor, ReadBusSourceDriver, BusReadTransaction, BusWriteTransaction
 from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransaction, RegFileWriteTransaction
+from riscv_utils import compile_test, crt0
 
 class TBConfig:
     def __init__(self, dut):
@@ -49,27 +50,22 @@ class TBConfig:
         )
 
 class Testbench():
-    def __init__(self, dut, elf, params):
+    def __init__(self, dut, params):
         self.log = SimLog(f"cocotb.Testbench")
         config = TBConfig(dut)
         self.clock = config.clock
         self.reset = config.reset
         self.reset.setimmediatevalue(0)
         ## Instruction read
-        self.elf = elf
         self.bus_ir_driver = ReadBusSourceDriver("bus_ir", config.ir_bind)
         self.bus_ir_monitor = ReadBusMonitor("bus_ir", config.ir_bind, reset = self.reset)
         self.bus_ir_req_monitor = ReadBusMonitor("bus_ir_req", config.ir_bind, request_only=True,
-            callback=self.instruction_read_callback, reset = self.reset)
+            callback=self.instruction_read_callback(params.instructions), reset = self.reset)
         ## Data read
-        self.data_memory = {}
-        for t in params.data_memory:
-            t = BusReadTransaction.from_string(t)
-            self.data_memory[t.addr] = t.data
         self.bus_dr_driver = ReadBusSourceDriver("bus_dr", config.dr_bind)
         self.bus_dr_monitor = ReadBusMonitor("bus_dr", config.dr_bind, reset = self.reset)
         self.bus_dr_req_monitor = ReadBusMonitor("bus_dr_req", config.dr_bind, request_only=True,
-            callback=self.data_read_callback, reset = self.reset)
+            callback=self.data_read_callback(params.data_memory), reset = self.reset)
         ## Regfile
         self.regfile_write_monitor = RegFileWriteMonitor("regfile_write", config.regfile_write_bind)
         self.regfile_read_monitor = RegFileReadMonitor("regfile_read", config.regfile_read_bind)
@@ -89,28 +85,38 @@ class Testbench():
         await RisingEdge(self.clock)
     def start_clock(self):
         cocotb.fork(Clock(self.clock,10,units='ns').start())
-    def data_read_callback(self, transaction):
-        addr = transaction.addr
-        self.log.debug(f"Data memory: {self.data_memory}")
-        assert addr in self.data_memory, f"Invalid data address: 0x{addr:X}"
-        driver_transaction = BusReadTransaction(
-            data = self.data_memory[addr],
-            addr = addr,
-        )
-        self.bus_dr_driver.append(driver_transaction)
-    def instruction_read_callback(self, transaction):
-        section_start = self.elf['.text']['addr']
-        section_data = self.elf['.text']['data']
-        section_size = len(section_data)
-        driver_transaction = "deassert_ready"
-        if transaction.addr < section_start + section_size:
-            assert section_start <= transaction.addr < section_start + section_size, "Reading invalid address"
-            addr = transaction.addr - section_start
+    def data_read_callback(self, data_memory_strings):
+        # parse data memory in string format
+        data_memory = {}
+        for t in data_memory_strings:
+            t = BusReadTransaction.from_string(t)
+            data_memory[t.addr] = t.data
+        def callback(transaction):
+            addr = transaction.addr
+            self.log.debug(f"Data memory: {data_memory}")
+            assert addr in data_memory, f"Invalid data address: 0x{addr:X}"
             driver_transaction = BusReadTransaction(
-                data = int.from_bytes(section_data[addr:addr+4],byteorder='little'),
-                addr = transaction.addr,
+                data = data_memory[addr],
+                addr = addr,
             )
-        self.bus_ir_driver.append(driver_transaction)
+            self.bus_dr_driver.append(driver_transaction)
+        return callback
+    def instruction_read_callback(self, instructions):
+        elf = compile_test(crt0 + instructions)
+        def callback(transaction):
+            section_start = elf['.text']['addr']
+            section_data = elf['.text']['data']
+            section_size = len(section_data)
+            driver_transaction = "deassert_ready"
+            if transaction.addr < section_start + section_size:
+                assert section_start <= transaction.addr < section_start + section_size, "Reading invalid address"
+                addr = transaction.addr - section_start
+                driver_transaction = BusReadTransaction(
+                    data = int.from_bytes(section_data[addr:addr+4],byteorder='little'),
+                    addr = transaction.addr,
+                )
+            self.bus_ir_driver.append(driver_transaction)
+        return callback
     @cocotb.coroutine
     async def finish(self):
         last_pending = ""

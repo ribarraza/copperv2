@@ -8,7 +8,6 @@ from cocotb.regression import TestFactory
 from cocotb.result import TestSuccess, TestComplete
 
 from testbench import Testbench
-from riscv_utils import compile_test, crt0
 from cocotb_utils import verilog_string, get_test_name, get_top_module
 
 @cocotb.coroutine
@@ -22,8 +21,7 @@ async def basic_test(dut, params):
     if 'debug_test' in cocotb.plusargs:
         SimLog("cocotb").setLevel(logging.DEBUG)
 
-    elf = compile_test(crt0 + params.instructions)
-    tb = Testbench(dut, elf, params)
+    tb = Testbench(dut, params)
 
     tb.start_clock()
     await tb.do_reset()
