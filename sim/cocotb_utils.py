@@ -15,7 +15,7 @@ class Bundle(SimpleNamespace):
     def __contains__(self, signal):
         return signal in self.__dict__
 
-class BundleAgent:
+class BundleBase:
     _signals = []
     _optional_signals = []
     def __init__(self, name, bind):
@@ -33,11 +33,11 @@ class BundleAgent:
     def __str__(self):
         return f"{type(self).__qualname__}({self.name})"
 
-class BundleMonitor(BundleAgent, Monitor):
+class BundleMonitor(BundleBase, Monitor):
     def __init__(self, name, bind, reset = None, reset_n = None, callback = None, event = None):
         self._reset = reset
         self._reset_n = reset_n
-        BundleAgent.__init__(self, name=name, bind=bind)
+        BundleBase.__init__(self, name=name, bind=bind)
         Monitor.__init__(self, callback=callback, event=event)
     @property
     def in_reset(self):
@@ -47,9 +47,9 @@ class BundleMonitor(BundleAgent, Monitor):
             return bool(self._reset.value.integer)
         return False
 
-class BundleDriver(BundleAgent, Driver):
+class BundleDriver(BundleBase, Driver):
     def __init__(self, name, bind):
-        BundleAgent.__init__(self, name=name, bind=bind)
+        BundleBase.__init__(self, name=name, bind=bind)
         Driver.__init__(self)
 
 def get_top_module(name):
