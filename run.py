@@ -77,7 +77,7 @@ default_run_opts = dict(
 )
 
 if args.chisel:
-    run('./scripts/chisel.sh sbt',default_run_opts,'chisel_shell')
+    run('sbt',default_run_opts,'chisel_shell')
     sys.exit(0)
 
 if args.pylint:

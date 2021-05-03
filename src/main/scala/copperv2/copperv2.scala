@@ -1,7 +1,7 @@
 package copperv2
 
 import chisel3._
-import chisel3.util.Decoupled
+import chisel3.util.{Decoupled,MuxLookup}
 
 class Cuv2Config {
   class BusConfig(
@@ -104,33 +104,37 @@ class Copperv2Bus(config: Cuv2Config) extends Bundle {
 
 class Copperv2 extends MultiIOModule with RequireSyncReset {
   val config = new Cuv2Config
-  val bus = IO(new Copperv2Bus(config))
-  bus.ir.addr.valid := 0.U
-  bus.ir.addr.bits := 0.U
-  bus.ir.data.ready := 0.U
-  bus.dr.addr.valid := 0.U
-  bus.dr.addr.bits := 0.U
-  bus.dr.data.ready := 0.U
-  bus.dw.req.valid := 0.U
-  bus.dw.req.bits.data := 0.U
-  bus.dw.req.bits.addr := 0.U
-  bus.dw.req.bits.strobe := 0.U
-  bus.dw.resp.ready := 0.U
-  val pc_en = true.B
-  val pc = RegInit(config.pc_init.U(config.pc_width.W))
-  when (pc_en) {
-    pc := pc + 4.U
-  }
-  when (bus.ir.addr.ready) {
-    bus.ir.addr.bits := pc
-    bus.ir.addr.valid := true.B
-  }
-//  val bb = Module(new BlackBoxRealAdd)
-//  bb.io.in1 := bus.ir.data.bits;
-//  bb.io.in2 := bus.dr.data.bits;
-//  bus.dr.addr.bits := bb.io.out;
+  val bus = new Copperv2Bus(config)
+  val ir = IO(bus.ir)
+  val dr = IO(bus.dr)
+  val dw = IO(bus.dw)
+  ir.addr.valid := 0.U
+  ir.addr.bits := 0.U
+  ir.data.ready := 0.U
+  dr.addr.valid := 0.U
+  dr.addr.bits := 0.U
+  dr.data.ready := 0.U
+  dw.req.valid := 0.U
+  dw.req.bits.data := 0.U
+  dw.req.bits.addr := 0.U
+  dw.req.bits.strobe := 0.U
+  dw.resp.ready := 0.U
+  val control = Module(new control_unit)
   val idec = Module(new idecoder)
   val regfile = Module(new register_file)
   val alu = Module(new arith_logic_unit)
-  val control = Module(new control_unit)
+  val pc = RegInit(config.pc_init.U(config.pc_width.W))
+  val pc_en = MuxLookup(control.io.pc_next_sel,true.B,Array(0.U -> false.B))
+  val pc_next = MuxLookup(control.io.pc_next_sel,0.U,Array(
+    1.U -> (pc + 4.U),
+    2.U -> (pc + idec.io.imm),
+    3.U -> (regfile.io.rs1_dout + idec.io.imm),
+  ))
+  when (pc_en) {
+    pc := pc_next
+  }
+  when (ir.addr.ready) {
+    ir.addr.bits := pc
+    ir.addr.valid := true.B
+  }
 }
