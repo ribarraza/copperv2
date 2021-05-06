@@ -9,16 +9,16 @@ import time
 
 # unbuffered output
 class Unbuffered:
-   def __init__(self, stream):
-       self.stream = stream
-   def write(self, data):
-       self.stream.write(data)
-       self.stream.flush()
-   def writelines(self, datas):
-       self.stream.writelines(datas)
-       self.stream.flush()
-   def __getattr__(self, attr):
-       return getattr(self.stream, attr)
+    def __init__(self, stream):
+        self.stream = stream
+    def write(self, data):
+        self.stream.write(data)
+        self.stream.flush()
+    def writelines(self, datas):
+        self.stream.writelines(datas)
+        self.stream.flush()
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
 sys.stdout = Unbuffered(sys.stdout)
 
 def run(c,run_opts,step):
@@ -64,8 +64,8 @@ parser.add_argument('-cocotb_reduced', action='store_true',
                     help='Launch cocotb in reduced log mode')
 parser.add_argument('-cocotb_debug', action='store_true',
                     help='Launch cocotb in debug log mode')
-parser.add_argument('-pylint', action='store_true',
-                    help='Lint Python testbench')
+parser.add_argument('-lint', action='store_true',
+                    help='Lint Python')
 
 args = parser.parse_args()
 
@@ -80,8 +80,8 @@ if args.chisel:
     run('sbt',default_run_opts,'chisel_shell')
     sys.exit(0)
 
-if args.pylint:
-    run("pylint sim/*.py",default_run_opts,'pylint')
+if args.lint:
+    run("flake8 sim",default_run_opts,'lint')
     sys.exit(0)
 
 if args.cocotb_debug:
