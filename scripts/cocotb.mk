@@ -1,5 +1,5 @@
 # defaults
-DUT_COPPERV1 ?= 0
+DUT_COPPERV1 ?= 1
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 WAVES ?= 1
@@ -20,6 +20,7 @@ ifneq ($(DUT_COPPERV1),1)
 	VERILOG_SOURCES += $(ROOT)/work/chisel/Copperv2.v
 else
 	TOPLEVEL = copperv
+	PLUSARGS += +dut_copperv1
 endif
 
 ifeq ($(WAVES), 1)
@@ -28,7 +29,7 @@ ifeq ($(WAVES), 1)
 endif
 
 ifeq ($(DEBUG_TEST), 1)
-	PLUSARGS = +debug_test
+	PLUSARGS += +debug_test
 endif
 
 include $(shell cocotb-config --makefiles)/Makefile.sim
