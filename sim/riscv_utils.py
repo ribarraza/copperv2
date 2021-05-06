@@ -12,10 +12,10 @@ ENTRY(_start)
 
 SECTIONS
 {
-	. = 0x00000000;
-	.text.init : { *(.text.init) }
-	. = ALIGN(0x1000);
-	_end = .;
+    . = 0x00000000;
+    .text.init : { *(.text.init) }
+    . = ALIGN(0x1000);
+    _end = .;
 }
 """
 linker_script = Path('linker.ld')

@@ -26,7 +26,6 @@ async def basic_test(dut, params):
     tb.start_clock()
     await tb.do_reset()
     await with_timeout(tb.finish(), 10000, 'ns')
-    #await tb.finish()
 
     dut._log.info(f"Test {test_name} finished")
 

@@ -7,7 +7,7 @@ from cocotb_bus.drivers import BusDriver, Driver
 from cocotb.log import SimLog
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, FallingEdge
 
-split_re = re.compile('\s+')
+split_re = re.compile(r'\s+')
 def lex(string):
     return split_re.split(string.strip())
 
@@ -24,14 +24,14 @@ class BundleBase:
         self.log = SimLog(f"cocotb.{self}")
     def validate_map(self, _map):
         for virtual_signal in self._signals:
-            if not virtual_signal in _map.keys():
+            if virtual_signal not in _map.keys():
                 raise ValueError(f'Missing signal "{virtual_signal}"')
         for actual_signal in _map.keys():
-            if not actual_signal in self._signals and not actual_signal in self._optional_signals:
+            if actual_signal not in self._signals and actual_signal not in self._optional_signals:
                 raise ValueError(f'Cannot bind "{actual_signal}"')
         return dict(_map)
     def __str__(self):
-        return f"{type(self).__qualname__}({self.name})"
+        return self.name
 
 class BundleMonitor(BundleBase, Monitor):
     def __init__(self, name, bind, reset = None, reset_n = None, callback = None, event = None):
