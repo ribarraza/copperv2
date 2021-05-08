@@ -48,8 +48,8 @@ steps = dict(
     chisel = f'sbt "runMain Copperv2Driver --target-dir {chisel_work_dir}"',
     test = dict(args=[
         f'ln -fs ../../scripts/cocotb.mk ./Makefile',
-        f'ln -fs ../../sim/*.py .',
-        'make'],cwd=sim_work_dir),
+        'make 2>&1 | tee sim.log',
+        r'sed -r -i "s/[[:cntrl:]]\[[0-9]{1,3}m//g" sim.log'],cwd=sim_work_dir,env={"PYTHONPATH":str((root/'sim').resolve())}),
 )
 step_list = list(steps.keys())
 

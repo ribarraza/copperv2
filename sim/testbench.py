@@ -73,6 +73,7 @@ class TBConfig:
             data_valid = self.dut.ir_data_valid,
             data_ready = self.dut.ir_data_ready,
             data = self.dut.ir_data_bits,
+            reset = self.reset,
         )
         self.dr_bind = dict(
             clock = self.clock,
@@ -82,12 +83,14 @@ class TBConfig:
             data_valid = self.dut.dr_data_valid,
             data_ready = self.dut.dr_data_ready,
             data = self.dut.dr_data,
+            reset = self.reset,
         )
         self.regfile_write_bind = dict(
             clock = self.clock,
             rd_en = self.dut.regfile.rd_en,
             rd_addr = self.dut.regfile.rd,
             rd_data = self.dut.regfile.rd_din,
+            reset = self.reset,
         )
         self.regfile_read_bind = dict(
             clock = self.clock,
@@ -97,6 +100,7 @@ class TBConfig:
             rs2_en = self.dut.regfile.rs2_en,
             rs2_addr = self.dut.regfile.rs2,
             rs2_data = self.dut.regfile.rs2_dout,
+            reset = self.reset,
         )
 
 def from_array(data,addr):
@@ -123,23 +127,23 @@ class Testbench():
             for i in range(4):
                 self.data_memory[t.addr+i] =  to_bytes(t.data)[i]
         ## Instruction read
-        self.bus_ir_driver = ReadBusSourceDriver("bus_ir", config.ir_bind)
-        self.bus_ir_monitor = ReadBusMonitor("bus_ir", config.ir_bind, reset = self.reset)
-        self.bus_ir_req_monitor = ReadBusMonitor("bus_ir_req", config.ir_bind, request_only=True,
-            callback=self.instruction_read_callback(params.instructions), reset = self.reset)
+        self.bus_ir_driver = ReadBusSourceDriver("bus_ir",**config.ir_bind)
+        self.bus_ir_monitor = ReadBusMonitor("bus_ir",**config.ir_bind)
+        self.bus_ir_req_monitor = ReadBusMonitor("bus_ir_req",**config.ir_bind,request_only=True,
+            callback=self.instruction_read_callback(params.instructions))
         ## Data read
-        self.bus_dr_driver = ReadBusSourceDriver("bus_dr", config.dr_bind)
-        self.bus_dr_monitor = ReadBusMonitor("bus_dr", config.dr_bind, reset = self.reset)
-        self.bus_dr_req_monitor = ReadBusMonitor("bus_dr_req", config.dr_bind, request_only=True,
-            callback=self.data_read_callback(self.data_memory), reset = self.reset)
+        self.bus_dr_driver = ReadBusSourceDriver("bus_dr",**config.dr_bind)
+        self.bus_dr_monitor = ReadBusMonitor("bus_dr",**config.dr_bind)
+        self.bus_dr_req_monitor = ReadBusMonitor("bus_dr_req",**config.dr_bind,request_only=True,
+            callback=self.data_read_callback(self.data_memory))
         ## Data write
-        self.bus_dw_driver = WriteBusSourceDriver("bus_dw", config.dw_bind)
-        self.bus_dw_monitor = WriteBusMonitor("bus_dw", config.dw_bind, reset = self.reset)
-        self.bus_dw_req_monitor = WriteBusMonitor("bus_dw_req", config.dw_bind, request_only=True,
-            callback=self.data_write_callback(self.data_memory), reset = self.reset)
+        self.bus_dw_driver = WriteBusSourceDriver("bus_dw",**config.dw_bind)
+        self.bus_dw_monitor = WriteBusMonitor("bus_dw",**config.dw_bind)
+        self.bus_dw_req_monitor = WriteBusMonitor("bus_dw_req",**config.dw_bind,request_only=True,
+            callback=self.data_write_callback(self.data_memory))
         ## Regfile
-        self.regfile_write_monitor = RegFileWriteMonitor("regfile_write", config.regfile_write_bind)
-        self.regfile_read_monitor = RegFileReadMonitor("regfile_read", config.regfile_read_bind)
+        self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",**config.regfile_write_bind)
+        self.regfile_read_monitor = RegFileReadMonitor("regfile_read",**config.regfile_read_bind)
         ## Self checking
         self.scoreboard = Scoreboard(dut)
         self.expected_regfile_read = [RegFileReadTransaction.from_string(t) for t in params.expected_regfile_read]

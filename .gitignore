@@ -3,6 +3,7 @@ scripts/tools/build.sh
 test_run_dir/*
 work/
 etc/
+__pycache__/
 ### XilinxISE template
 # intermediate build files
 *.bgn
