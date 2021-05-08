@@ -26,6 +26,7 @@ class TBConfig:
             data_valid = self.dut.ir_data_valid,
             data_ready = self.dut.ir_data_ready,
             data = self.dut.ir_data,
+            reset = self.reset,
         )
         self.dr_bind = dict(
             clock = self.clock,
@@ -35,6 +36,7 @@ class TBConfig:
             data_valid = self.dut.dr_data_valid,
             data_ready = self.dut.dr_data_ready,
             data = self.dut.dr_data,
+            reset = self.reset,
         )
         self.dw_bind = dict(
             clock = self.clock,
@@ -46,12 +48,14 @@ class TBConfig:
             resp_ready = self.dut.dw_resp_ready,
             resp_valid = self.dut.dw_resp_valid,
             resp = self.dut.dw_resp,
+            reset = self.reset,
         )
         self.regfile_write_bind = dict(
             clock = self.clock,
             rd_en = self.dut.regfile.rd_en,
             rd_addr = self.dut.regfile.rd,
             rd_data = self.dut.regfile.rd_din,
+            reset = self.reset,
         )
         self.regfile_read_bind = dict(
             clock = self.clock,
@@ -61,6 +65,7 @@ class TBConfig:
             rs2_en = self.dut.regfile.rs2_en,
             rs2_addr = self.dut.regfile.rs2,
             rs2_data = self.dut.regfile.rs2_dout,
+            reset = self.reset,
         )
     def copperv2_bind(self):
         self.clock = self.dut.clock
@@ -79,10 +84,22 @@ class TBConfig:
             clock = self.clock,
             addr_valid = self.dut.dr_addr_valid,
             addr_ready = self.dut.dr_addr_ready,
-            addr = self.dut.dr_addr,
+            addr = self.dut.dr_addr_bits,
             data_valid = self.dut.dr_data_valid,
             data_ready = self.dut.dr_data_ready,
-            data = self.dut.dr_data,
+            data = self.dut.dr_data_bits,
+            reset = self.reset,
+        )
+        self.dw_bind = dict(
+            clock = self.clock,
+            req_ready = self.dut.dw_req_ready,
+            req_valid = self.dut.dw_req_valid,
+            req_data = self.dut.dw_req_bits_data,
+            req_addr = self.dut.dw_req_bits_addr,
+            req_strobe = self.dut.dw_req_bits_strobe,
+            resp_ready = self.dut.dw_resp_ready,
+            resp_valid = self.dut.dw_resp_valid,
+            resp = self.dut.dw_resp_bits,
             reset = self.reset,
         )
         self.regfile_write_bind = dict(

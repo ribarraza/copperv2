@@ -1,5 +1,5 @@
 # defaults
-DUT_COPPERV1 ?= 1
+DUT_COPPERV1 ?= 0
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 WAVES ?= 1

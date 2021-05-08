@@ -38,7 +38,7 @@ class RegFileReadTransaction:
             ValueError("Invalid transaction")
 
 class RegFileWriteMonitor(Monitor):
-    def __init__(self,name,clock,rd_en,rd_addr,rd_data,callback=None,event=None):
+    def __init__(self,name,clock,rd_en,rd_addr,rd_data,reset,callback=None,event=None):
         self.name = name
         self.log = SimLog(f"cocotb.{self.name}")
         self.clock = clock
@@ -59,7 +59,7 @@ class RegFileWriteMonitor(Monitor):
                 self._recv(transaction)
 
 class RegFileReadMonitor(Monitor):
-    def __init__(self,name,clock,rs1_en,rs1_addr,rs1_data,rs2_en,rs2_addr,rs2_data,callback=None,event=None):
+    def __init__(self,name,clock,rs1_en,rs1_addr,rs1_data,rs2_en,rs2_addr,rs2_data,reset,callback=None,event=None):
         self.name = name
         self.log = SimLog(f"cocotb.{self.name}")
         self.clock = clock

@@ -108,7 +108,7 @@ class FullChannelMonitor(Monitor):
 
 class ReadBusMonitor(Monitor):
     def __init__(self,name,clock,addr_ready,addr_valid,addr,data_ready,
-            data_valid,data,request_only=False,callback=None,event=None,reset=None):
+            data_valid,data,reset,request_only=False,callback=None,event=None):
         self.name = name
         self.log = SimLog(f"cocotb.{self.name}")
         self.request_only = request_only
@@ -137,7 +137,7 @@ class ReadBusMonitor(Monitor):
 
 class WriteBusMonitor(Monitor):
     def __init__(self,name,clock,req_ready,req_valid,req_data,req_addr,
-            req_strobe,resp_ready,resp_valid,resp,request_only=False,callback=None,event=None,reset=None):
+            req_strobe,resp_ready,resp_valid,resp,reset,request_only=False,callback=None,event=None):
         self.name = name
         self.log = SimLog(f"cocotb.{self.name}")
         self.request_only = request_only
@@ -207,7 +207,7 @@ class ReqChannelDriver(Driver):
         self.ready <= bool(transaction)
 
 class ReadBusSourceDriver(Driver):
-    def __init__(self,name,clock,addr_valid,addr_ready,addr,data_valid,data_ready,data):
+    def __init__(self,name,clock,addr_valid,addr_ready,addr,data_valid,data_ready,data,reset):
         self.name = name
         self.log = SimLog(f"cocotb.{self.name}")
         self.req_driver = ReqChannelDriver(self.name+'.hreq',clock=clock,ready=addr_ready)
@@ -223,7 +223,7 @@ class ReadBusSourceDriver(Driver):
 
 class WriteBusSourceDriver(Driver):
     def __init__(self,name,clock,req_ready,req_valid,req_data,req_addr,req_strobe,
-            resp_ready,resp_valid,resp):
+            resp_ready,resp_valid,resp,reset):
         self.name = name
         self.log = SimLog(f"cocotb.{self.name}")
         self.req_driver = ReqChannelDriver(self.name+'.hreq',clock=clock,ready=req_ready)
