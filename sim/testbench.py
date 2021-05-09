@@ -12,111 +12,59 @@ class TBConfig:
     def __init__(self, dut):
         self.dut = dut
         if cocotb.plusargs.get('dut_copperv1',False):
-            self.copperv1_bind()
+            self.copperv_bind(self.dut,self.dut)
         else:
-            self.copperv2_bind()
-    def copperv1_bind(self):
-        self.clock = self.dut.clk
-        self.reset = self.dut.rst
+            self.copperv_bind(self.dut,self.dut.copperv2_core)
+    def copperv_bind(self,interface,core):
+        self.clock = interface.clk
+        self.reset = interface.rst
         self.ir_bind = dict(
             clock = self.clock,
-            addr_valid = self.dut.ir_addr_valid,
-            addr_ready = self.dut.ir_addr_ready,
-            addr = self.dut.ir_addr,
-            data_valid = self.dut.ir_data_valid,
-            data_ready = self.dut.ir_data_ready,
-            data = self.dut.ir_data,
+            addr_valid = interface.ir_addr_valid,
+            addr_ready = interface.ir_addr_ready,
+            addr = interface.ir_addr,
+            data_valid = interface.ir_data_valid,
+            data_ready = interface.ir_data_ready,
+            data = interface.ir_data,
             reset = self.reset,
         )
         self.dr_bind = dict(
             clock = self.clock,
-            addr_valid = self.dut.dr_addr_valid,
-            addr_ready = self.dut.dr_addr_ready,
-            addr = self.dut.dr_addr,
-            data_valid = self.dut.dr_data_valid,
-            data_ready = self.dut.dr_data_ready,
-            data = self.dut.dr_data,
+            addr_valid = interface.dr_addr_valid,
+            addr_ready = interface.dr_addr_ready,
+            addr = interface.dr_addr,
+            data_valid = interface.dr_data_valid,
+            data_ready = interface.dr_data_ready,
+            data = interface.dr_data,
             reset = self.reset,
         )
         self.dw_bind = dict(
             clock = self.clock,
-            req_ready = self.dut.dw_data_addr_ready,
-            req_valid = self.dut.dw_data_addr_valid,
-            req_data = self.dut.dw_data,
-            req_addr = self.dut.dw_addr,
-            req_strobe = self.dut.dw_strobe,
-            resp_ready = self.dut.dw_resp_ready,
-            resp_valid = self.dut.dw_resp_valid,
-            resp = self.dut.dw_resp,
+            req_ready = interface.dw_data_addr_ready,
+            req_valid = interface.dw_data_addr_valid,
+            req_data = interface.dw_data,
+            req_addr = interface.dw_addr,
+            req_strobe = interface.dw_strobe,
+            resp_ready = interface.dw_resp_ready,
+            resp_valid = interface.dw_resp_valid,
+            resp = interface.dw_resp,
             reset = self.reset,
         )
         self.regfile_write_bind = dict(
             clock = self.clock,
-            rd_en = self.dut.regfile.rd_en,
-            rd_addr = self.dut.regfile.rd,
-            rd_data = self.dut.regfile.rd_din,
+            rd_en = core.regfile.rd_en,
+            rd_addr = core.regfile.rd,
+            rd_data = core.regfile.rd_din,
             reset = self.reset,
         )
         self.regfile_read_bind = dict(
             clock = self.clock,
-            rs1_en = self.dut.regfile.rs1_en,
-            rs1_addr = self.dut.regfile.rs1,
-            rs1_data = self.dut.regfile.rs1_dout,
-            rs2_en = self.dut.regfile.rs2_en,
-            rs2_addr = self.dut.regfile.rs2,
-            rs2_data = self.dut.regfile.rs2_dout,
-            reset = self.reset,
-        )
-    def copperv2_bind(self):
-        self.clock = self.dut.clock
-        self.reset = self.dut.reset
-        self.ir_bind = dict(
-            clock = self.clock,
-            addr_valid = self.dut.ir_addr_valid,
-            addr_ready = self.dut.ir_addr_ready,
-            addr = self.dut.ir_addr_bits,
-            data_valid = self.dut.ir_data_valid,
-            data_ready = self.dut.ir_data_ready,
-            data = self.dut.ir_data_bits,
-            reset = self.reset,
-        )
-        self.dr_bind = dict(
-            clock = self.clock,
-            addr_valid = self.dut.dr_addr_valid,
-            addr_ready = self.dut.dr_addr_ready,
-            addr = self.dut.dr_addr_bits,
-            data_valid = self.dut.dr_data_valid,
-            data_ready = self.dut.dr_data_ready,
-            data = self.dut.dr_data_bits,
-            reset = self.reset,
-        )
-        self.dw_bind = dict(
-            clock = self.clock,
-            req_ready = self.dut.dw_req_ready,
-            req_valid = self.dut.dw_req_valid,
-            req_data = self.dut.dw_req_bits_data,
-            req_addr = self.dut.dw_req_bits_addr,
-            req_strobe = self.dut.dw_req_bits_strobe,
-            resp_ready = self.dut.dw_resp_ready,
-            resp_valid = self.dut.dw_resp_valid,
-            resp = self.dut.dw_resp_bits,
-            reset = self.reset,
-        )
-        self.regfile_write_bind = dict(
-            clock = self.clock,
-            rd_en = self.dut.regfile.rd_en,
-            rd_addr = self.dut.regfile.rd,
-            rd_data = self.dut.regfile.rd_din,
-            reset = self.reset,
-        )
-        self.regfile_read_bind = dict(
-            clock = self.clock,
-            rs1_en = self.dut.regfile.rs1_en,
-            rs1_addr = self.dut.regfile.rs1,
-            rs1_data = self.dut.regfile.rs1_dout,
-            rs2_en = self.dut.regfile.rs2_en,
-            rs2_addr = self.dut.regfile.rs2,
-            rs2_data = self.dut.regfile.rs2_dout,
+            rs1_en = core.regfile.rs1_en,
+            rs1_addr = core.regfile.rs1,
+            rs1_data = core.regfile.rs1_dout,
+            rs2_en = core.regfile.rs2_en,
+            rs2_addr = core.regfile.rs2,
+            rs2_data = core.regfile.rs2_dout,
             reset = self.reset,
         )
 

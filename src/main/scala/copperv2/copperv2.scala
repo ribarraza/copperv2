@@ -102,8 +102,7 @@ class Copperv2Bus(config: Cuv2Config) extends Bundle {
   val dw = new Cuv2WriteChannel(config)
 }
 
-class Copperv2 extends MultiIOModule with RequireSyncReset {
-  val config = new Cuv2Config
+class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule with RequireSyncReset {
   val bus = new Copperv2Bus(config)
   val ir = IO(bus.ir)
   val dr = IO(bus.dr)
@@ -136,5 +135,54 @@ class Copperv2 extends MultiIOModule with RequireSyncReset {
   when (ir.addr.ready) {
     ir.addr.bits := pc
     ir.addr.valid := true.B
+  }
+}
+
+class copperv2 extends RawModule {
+  val config = new Cuv2Config
+  val clk = IO(Input(Clock()))
+  val rst = IO(Input(Bool()))
+  val ir_data_valid = IO(Input(Bool()))
+  val ir_addr_ready = IO(Input(Bool()))
+  val ir_data = IO(Input(UInt(config.bus.data_width.W)))
+  val dr_data_valid = IO(Input(Bool()))
+  val dr_addr_ready = IO(Input(Bool()))
+  val dw_data_addr_ready = IO(Input(Bool()))
+  val dw_resp_valid = IO(Input(Bool()))
+  val dr_data = IO(Input(UInt(config.bus.data_width.W)))
+  val dw_resp = IO(Input(UInt(config.bus.resp_width.W)))
+  val ir_data_ready = IO(Output(Bool())) 
+  val ir_addr_valid = IO(Output(Bool()))
+  val ir_addr = IO(Output(UInt(config.bus.addr_width.W)))
+  val dr_data_ready = IO(Output(Bool()))
+  val dr_addr_valid = IO(Output(Bool()))
+  val dw_data_addr_valid = IO(Output(Bool()))
+  val dw_resp_ready = IO(Output(Bool()))
+  val dr_addr = IO(Output(UInt(config.bus.addr_width.W)))
+  val dw_data = IO(Output(UInt(config.bus.data_width.W)))
+  val dw_addr = IO(Output(UInt(config.bus.addr_width.W)))
+  val dw_strobe = IO(Output(UInt((config.bus.data_width / 4).W)))
+  withClockAndReset(clk,~rst.asBool) {
+    val copperv2_core = Module(new Copperv2Core(config))
+    copperv2_core.ir.addr.ready := ir_addr_ready
+    ir_addr_valid               := copperv2_core.ir.addr.valid
+    ir_addr                     := copperv2_core.ir.addr.bits
+    ir_data_ready               := copperv2_core.ir.data.ready
+    copperv2_core.ir.data.valid := ir_data_valid
+    copperv2_core.ir.data.bits  := ir_data
+    copperv2_core.dr.addr.ready := dr_addr_ready
+    dr_addr_valid               := copperv2_core.dr.addr.valid
+    dr_addr                     := copperv2_core.dr.addr.bits
+    dr_data_ready               := copperv2_core.dr.data.ready
+    copperv2_core.dr.data.valid := dr_data_valid
+    copperv2_core.dr.data.bits  := dr_data
+    copperv2_core.dw.req.ready  := dw_data_addr_ready
+    dw_data_addr_valid          := copperv2_core.dw.req.valid
+    dw_data                     := copperv2_core.dw.req.bits.data
+    dw_addr                     := copperv2_core.dw.req.bits.addr
+    dw_strobe                   := copperv2_core.dw.req.bits.strobe
+    dw_resp_ready               := copperv2_core.dw.resp.ready
+    copperv2_core.dw.resp.valid := dw_resp_valid
+    copperv2_core.dw.resp.bits  := dw_resp
   }
 }

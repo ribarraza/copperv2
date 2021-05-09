@@ -47,13 +47,14 @@ class HalfChannelMonitor(Monitor):
             await RisingEdge(self.clock)
             await ReadOnly()
             if self.ready.value and self.valid.value:
+                self.log.debug(f"Fire")
                 if isinstance(self.payload, list):
                     payload_value = [int(p.value) for p in self.payload]
                 elif isinstance(self.payload, dict):
                     payload_value = {k:int(p.value) for k,p in self.payload.items()}
                 else:
                     payload_value = int(self.payload.value)
-                self.log.debug(f"Half channel fire: {payload_value}")
+                self.log.debug(f"Half channel received: {payload_value}")
                 self._recv(payload_value)
 
 class FullChannelMonitor(Monitor):
@@ -86,7 +87,7 @@ class FullChannelMonitor(Monitor):
             await First(self.req_event.wait(), self.resp_event.wait())
             if self.req_event.is_set():
                 if not self.request_only:
-                    assert transaction is None, f"{self}: Receiving new request before sending response to previous request"
+                    assert transaction is None, f"{self.name}: Receiving new request before sending response to previous request: {transaction}"
                 transaction = MonitorTransaction(
                     request = self.req_event.data,
                 )

@@ -16,5 +16,5 @@ mkdir -p $IVY2_DIR
 mkdir -p $SBT_DIR
 mkdir -p $CACHE_DIR
 
-podman run --rm -it -p 4444:4444 -v ${MOUNT_DIR}:/container:Z -v ${IVY2_DIR}:/root/.ivy2:Z -v ${SBT_DIR}:/root/.sbt:Z -v ${CACHE_DIR}:/root/.cache:Z $WORK_DIR_OPT diegob94/open_eda:copperv2_dev "$@"
+podman run --rm -it -p 4440:4440 -v ${MOUNT_DIR}:/container:Z -v ${IVY2_DIR}:/root/.ivy2:Z -v ${SBT_DIR}:/root/.sbt:Z -v ${CACHE_DIR}:/root/.cache:Z $WORK_DIR_OPT diegob94/open_eda:copperv2_dev "$@"
 
