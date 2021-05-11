@@ -34,9 +34,10 @@ class MonitorTransaction:
     response: typing.Any = None
 
 class HalfChannelMonitor(Monitor):
-    def __init__(self,name,clock,ready,valid,payload,callback=None,event=None):
+    def __init__(self,name,clock,ready,valid,payload,reset,callback=None,event=None):
         self.name = name
         self.clock = clock
+        self.reset = reset
         self.ready = ready
         self.valid = valid
         self.payload = payload
@@ -46,6 +47,8 @@ class HalfChannelMonitor(Monitor):
         while True:
             await RisingEdge(self.clock)
             await ReadOnly()
+            if self.reset:
+                continue
             if self.ready.value and self.valid.value:
                 self.log.debug(f"Fire")
                 if isinstance(self.payload, list):
@@ -59,7 +62,7 @@ class HalfChannelMonitor(Monitor):
 
 class FullChannelMonitor(Monitor):
     def __init__(self,name,clock,req_ready,req_valid,req_payload,resp_ready,
-            resp_valid,resp_payload,request_only=False,callback=None,event=None):
+            resp_valid,resp_payload,reset,request_only=False,callback=None,event=None):
         self.name = name
         self.request_only = request_only
         self.resp_event = Event()
@@ -67,6 +70,7 @@ class FullChannelMonitor(Monitor):
         super().__init__(callback=callback,event=event)
         self.req_channel = HalfChannelMonitor(self.name+'_hreq',
             clock = clock,
+            reset = reset,
             ready = req_ready,
             valid = req_valid,
             payload = req_payload,
@@ -75,6 +79,7 @@ class FullChannelMonitor(Monitor):
         if not self.request_only:
             self.resp_channel = HalfChannelMonitor(self.name+'_hresp',
                 clock = clock,
+                reset = reset,
                 ready = resp_ready,
                 valid = resp_valid,
                 payload = resp_payload,
@@ -116,6 +121,7 @@ class ReadBusMonitor(Monitor):
         self.read_event = Event()
         self.read_channel = FullChannelMonitor(self.name+'_mon',
             clock = clock,
+            reset = reset,
             req_ready = addr_ready,
             req_valid = addr_valid,
             req_payload = addr,
@@ -145,6 +151,7 @@ class WriteBusMonitor(Monitor):
         self.write_event = Event()
         self.write_channel = FullChannelMonitor(self.name+'_mon',
             clock = clock,
+            reset = reset,
             req_ready = req_ready,
             req_valid = req_valid,
             req_payload = dict(data=req_data,addr=req_addr,strobe=req_strobe),
