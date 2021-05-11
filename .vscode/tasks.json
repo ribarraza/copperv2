@@ -13,8 +13,8 @@
                 "echo": true,
                 "reveal": "silent",
                 "focus": false,
-                "panel": "new",
-                "showReuseMessage": false,
+                "panel": "shared",
+                "showReuseMessage": true,
                 "clear": true
             },
             "options": {

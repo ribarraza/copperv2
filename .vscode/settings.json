@@ -3,4 +3,16 @@
         "**/target": true
     },
     "python.analysis.extraPaths": ["sim"],
+    "files.associations": {
+        "*.log": "plaintext",
+    },
+    "files.exclude": {
+        ".cache": true,
+        ".sbt": true,
+        ".bloop": true,
+        ".bsp": true,
+        ".ivy2": true,
+        ".metals": true,
+    },
+    "python.languageServer": "Pylance",
 }

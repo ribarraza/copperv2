@@ -31,8 +31,8 @@
 	// "remoteUser": "vscode"
 
     "mounts": [
-        "source=${localWorkspaceFolder}/work/.ivy2,target=/root/.ivy2,type=bind,consistency=delegated",
-        "source=${localWorkspaceFolder}/work/.sbt,target=/root/.sbt,type=bind,consistency=delegated",
-        "source=${localWorkspaceFolder}/work/.cache,target=/root/.cache,type=bind,consistency=delegated"
+        "source=${localWorkspaceFolder}/.ivy2,target=/root/.ivy2,type=bind,consistency=delegated",
+        "source=${localWorkspaceFolder}/.sbt,target=/root/.sbt,type=bind,consistency=delegated",
+        "source=${localWorkspaceFolder}/.cache,target=/root/.cache,type=bind,consistency=delegated"
     ]
 }
