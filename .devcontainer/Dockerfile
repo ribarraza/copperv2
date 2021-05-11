@@ -32,4 +32,9 @@ RUN apt-get update \
 # cocotb
 RUN pip install --no-cache-dir cocotb cocotb-coverage pytest remote_pdb pyelftools flake8
 
+# dev
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y git \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /container

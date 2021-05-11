@@ -1,11 +1,18 @@
 import logging
 import dataclasses
+import os
 
 import cocotb
 from cocotb.triggers import with_timeout
 from cocotb.log import SimLog
 from cocotb.regression import TestFactory
 from cocotb.result import TestSuccess, TestComplete
+
+if os.environ.get("VS_DEBUG",False):
+    import debugpy
+    debugpy.listen(4440)
+    print("Info: debugpy waiting for client...")
+    debugpy.wait_for_client()
 
 from testbench import Testbench
 from cocotb_utils import verilog_string, get_test_name, get_top_module

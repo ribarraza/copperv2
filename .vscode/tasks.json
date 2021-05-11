@@ -1,0 +1,37 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cocotb",
+            "type": "shell",
+            "command": "./run.py -from test -to test",
+            "group": "test",
+            "isBackground": true,
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "options": {
+                "env": {
+                    "VS_DEBUG": "1"
+                }
+            },
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "_____________"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".",
+                    "endsPattern": "^Info: debugpy waiting for client\\.\\.\\.",
+                }
+            }
+        }
+    ]
+}
