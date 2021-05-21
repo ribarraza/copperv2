@@ -6,7 +6,7 @@
         {
             "label": "cocotb",
             "type": "shell",
-            "command": "./run.py -from test -to test",
+            "command": "./run.py -from test -to test -cocotb_debug",
             "group": "test",
             "isBackground": true,
             "presentation": {

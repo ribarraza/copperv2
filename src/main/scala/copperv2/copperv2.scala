@@ -4,13 +4,6 @@ import chisel3._
 import chisel3.util.{Decoupled,MuxLookup}
 
 class Cuv2Config {
-  class BusConfig(
-    var data_width: Int = 32, 
-    var addr_width: Int = 32, 
-    var resp_width: Int = 1
-  )
-  var bus = new BusConfig()
-  var pc_width = 32
   var pc_init = 0
 }
 
@@ -54,8 +47,8 @@ class arith_logic_unit extends BlackBox {
 
 class control_unit extends BlackBox {
   val io = IO(new Bundle {
-    val clk = Input(Bool())
-    val rst = Input(Bool())
+    val clk = Input(Clock())
+    val rst = Input(Reset())
     val inst_type = Input(UInt(4.W))
     val inst_valid = Input(Bool())
     val alu_comp = Input(UInt(3.W))
@@ -75,35 +68,39 @@ class control_unit extends BlackBox {
   })
 }
 
-class Cuv2ReadChannel(config: Cuv2Config) extends Bundle {
+class ReadChannel(addr_width: Int, data_width: Int) extends Bundle {
   // Output
-  val addr = Decoupled(UInt(config.bus.addr_width.W))
+  val addr = Decoupled(UInt(addr_width.W))
   // Input
-  val data = Flipped(Decoupled(UInt(config.bus.data_width.W)))
+  val data = Flipped(Decoupled(UInt(data_width.W)))
 }
 
-class Cuv2WriteOutput(config: Cuv2Config) extends Bundle {
-  val strobe_width = config.bus.data_width / 4
-  val data = UInt(config.bus.data_width.W)
-  val addr = UInt(config.bus.addr_width.W)
-  val strobe = UInt(strobe_width.W)
-}
-
-class Cuv2WriteChannel(config: Cuv2Config) extends Bundle {
+class WriteChannel(addr_width: Int, data_width: Int, resp_width: Int) extends Bundle {
   // Output
-  val req = Decoupled(new Cuv2WriteOutput(config))
+  val req = Decoupled(new Bundle {
+    val strobe_width = data_width / 4
+    val data = UInt(data_width.W)
+    val addr = UInt(addr_width.W)
+    val strobe = UInt(strobe_width.W)
+  })
   // Input
-  val resp = Flipped(Decoupled(UInt(config.bus.resp_width.W)))
+  val resp = Flipped(Decoupled(UInt(resp_width.W)))
 }
 
-class Copperv2Bus(config: Cuv2Config) extends Bundle {
-  val ir = new Cuv2ReadChannel(config)
-  val dr = new Cuv2ReadChannel(config)
-  val dw = new Cuv2WriteChannel(config)
+class CoppervBus(addr_width: Int, data_width: Int, resp_width: Int) extends Bundle {
+  val ir = new ReadChannel(addr_width=addr_width,data_width=addr_width)
+  val dr = new ReadChannel(addr_width=addr_width,data_width=addr_width)
+  val dw = new WriteChannel(addr_width=addr_width,data_width=addr_width,resp_width=resp_width)
+}
+
+object CoppervCore {
+  val DATA_WIDTH: Int = 32
+  val ADDR_WIDTH: Int = 32
+  val RESP_WIDTH: Int = 1
 }
 
 class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule with RequireSyncReset {
-  val bus = new Copperv2Bus(config)
+  val bus = new CoppervBus(addr_width=CoppervCore.ADDR_WIDTH,data_width=CoppervCore.DATA_WIDTH,resp_width=CoppervCore.RESP_WIDTH)
   val ir = IO(bus.ir)
   val dr = IO(bus.dr)
   val dw = IO(bus.dw)
@@ -122,7 +119,9 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   val idec = Module(new idecoder)
   val regfile = Module(new register_file)
   val alu = Module(new arith_logic_unit)
-  val pc = RegInit(config.pc_init.U(config.pc_width.W))
+  val instruction = Reg(UInt())
+  val inst_fetch = Wire(UInt())
+  val pc = RegInit(config.pc_init.U)
   val pc_en = MuxLookup(control.io.pc_next_sel,true.B,Array(0.U -> false.B))
   val pc_next = MuxLookup(control.io.pc_next_sel,0.U,Array(
     1.U -> (pc + 4.U),
@@ -134,8 +133,15 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   }
   when (ir.addr.ready) {
     ir.addr.bits := pc
-    ir.addr.valid := true.B
   }
+  when (ir.data.fire()) {
+    instruction := ir.data.bits
+  }
+  ir.addr.valid := inst_fetch
+  idec.io.inst := instruction
+  inst_fetch := control.io.inst_fetch
+  control.io.clk := clock
+  control.io.rst := ~reset.asBool()
 }
 
 class copperv2 extends RawModule {
@@ -144,24 +150,24 @@ class copperv2 extends RawModule {
   val rst = IO(Input(Bool()))
   val ir_data_valid = IO(Input(Bool()))
   val ir_addr_ready = IO(Input(Bool()))
-  val ir_data = IO(Input(UInt(config.bus.data_width.W)))
+  val ir_data = IO(Input(UInt(CoppervCore.DATA_WIDTH.W)))
   val dr_data_valid = IO(Input(Bool()))
   val dr_addr_ready = IO(Input(Bool()))
   val dw_data_addr_ready = IO(Input(Bool()))
   val dw_resp_valid = IO(Input(Bool()))
-  val dr_data = IO(Input(UInt(config.bus.data_width.W)))
-  val dw_resp = IO(Input(UInt(config.bus.resp_width.W)))
+  val dr_data = IO(Input(UInt(CoppervCore.DATA_WIDTH.W)))
+  val dw_resp = IO(Input(UInt(CoppervCore.RESP_WIDTH.W)))
   val ir_data_ready = IO(Output(Bool())) 
   val ir_addr_valid = IO(Output(Bool()))
-  val ir_addr = IO(Output(UInt(config.bus.addr_width.W)))
+  val ir_addr = IO(Output(UInt(CoppervCore.ADDR_WIDTH.W)))
   val dr_data_ready = IO(Output(Bool()))
   val dr_addr_valid = IO(Output(Bool()))
   val dw_data_addr_valid = IO(Output(Bool()))
   val dw_resp_ready = IO(Output(Bool()))
-  val dr_addr = IO(Output(UInt(config.bus.addr_width.W)))
-  val dw_data = IO(Output(UInt(config.bus.data_width.W)))
-  val dw_addr = IO(Output(UInt(config.bus.addr_width.W)))
-  val dw_strobe = IO(Output(UInt((config.bus.data_width / 4).W)))
+  val dr_addr = IO(Output(UInt(CoppervCore.ADDR_WIDTH.W)))
+  val dw_data = IO(Output(UInt(CoppervCore.DATA_WIDTH.W)))
+  val dw_addr = IO(Output(UInt(CoppervCore.ADDR_WIDTH.W)))
+  val dw_strobe = IO(Output(UInt((CoppervCore.DATA_WIDTH / 4).W)))
   withClockAndReset(clk,~rst.asBool) {
     val copperv2_core = Module(new Copperv2Core(config))
     copperv2_core.ir.addr.ready := ir_addr_ready

@@ -15,7 +15,9 @@
 		"mrsoliman.firrtl",
 		"scala-lang.scala",
 		"vscodevim.vim",
-		"ms-python.python"
+		"ms-python.python",
+		"scalameta.metals",
+		"eamodio.gitlens",
 	],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.

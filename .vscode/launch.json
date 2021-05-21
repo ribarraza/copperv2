@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Cocotb",
+            "name": "Cocotb",
             "type": "python",
             "request": "attach",
             "port": 4440,
@@ -13,13 +13,13 @@
         },
         {
             "type": "scala",
-            "name": "Scala: Chisel",
+            "name": "Chisel",
             "request": "launch",
             "mainClass": "Copperv2Driver",
             "args": [
                 "--target-dir",
                 "${workspaceFolder}/work/chisel"
-            ]
+            ],
         }
     ]
 }

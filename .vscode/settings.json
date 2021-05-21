@@ -15,4 +15,7 @@
         ".metals": true,
     },
     "python.languageServer": "Pylance",
+    "gitlens.currentLine.enabled": false,
+    "gitlens.codeLens.authors.enabled": false,
+    "gitlens.codeLens.recentChange.enabled": false,
 }
