@@ -1,10 +1,12 @@
 import dataclasses
 import typing
 
+import cocotb
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, Event, First
 from cocotb_bus.monitors import Monitor
 from cocotb_bus.drivers import Driver
 from cocotb.log import SimLog
+from cocotb.queue import Queue
 
 from cocotb_utils import wait_for_signal, lex
 
@@ -29,97 +31,108 @@ class BusWriteTransaction:
         return cls(int(data,0),int(addr,0),int(strobe,0),int(response,0))
 
 @dataclasses.dataclass
-class MonitorTransaction:
+class ReqRespTransaction:
     request: typing.Any
     response: typing.Any = None
 
-class HalfChannelMonitor(Monitor):
-    def __init__(self,name,clock,ready,valid,payload,reset,callback=None,event=None):
-        self.name = name
+class BusLowLevel:
+    def __init__(self,log,clock,reset):
+        self.log = log
         self.clock = clock
         self.reset = reset
-        self.ready = ready
-        self.valid = valid
-        self.payload = payload
-        super().__init__(callback=callback,event=event)
-        self.log = SimLog(f"cocotb.{self.name}")
-    async def _monitor_recv(self):
-        while True:
+    def in_reset(self):
+        return not self.reset.value
+    async def recv_half_channel(self,ready,valid,payload,queue):
+        while(True):
             await RisingEdge(self.clock)
             await ReadOnly()
-            if self.reset:
+            if self.in_reset():
                 continue
-            if self.ready.value and self.valid.value:
-                self.log.debug(f"Fire")
-                if isinstance(self.payload, list):
-                    payload_value = [int(p.value) for p in self.payload]
-                elif isinstance(self.payload, dict):
-                    payload_value = {k:int(p.value) for k,p in self.payload.items()}
-                else:
-                    payload_value = int(self.payload.value)
+            if ready.value and valid.value:
+                payload_value = self.get_payload_value(payload)
                 self.log.debug(f"Half channel received: {payload_value}")
-                self._recv(payload_value)
+                queue.put_nowait(payload_value)
+    async def send_half_channel(self,ready,valid,payload,transaction):
+        await wait_for_signal(ready)
+        await RisingEdge(self.clock)
+        await NextTimeStep()
+        valid <= 1
+        self.put_payload_value(payload,transaction)
+        await RisingEdge(self.clock)
+        await NextTimeStep()
+        valid <= 0
+    async def drive_ready(self,ready,value):
+        await RisingEdge(self.clock)
+        await NextTimeStep()
+        ready <= value
+    @staticmethod
+    def get_payload_value(payload):
+        if isinstance(payload, list):
+            payload_value = [int(p.value) for p in payload]
+        elif isinstance(payload, dict):
+            payload_value = {k:int(p.value) for k,p in payload.items()}
+        else:
+            payload_value = int(payload.value)
+        return payload_value
+    @staticmethod
+    def put_payload_value(payload,transaction):
+        if isinstance(transaction, dict):
+            for k in payload.keys():
+                payload[k] <= int(transaction[k])
+        elif isinstance(transaction, list):
+            for k in range(len(payload)):
+                payload[k] <= int(transaction[k])
+        else:
+            payload <= int(transaction)
 
 class FullChannelMonitor(Monitor):
     def __init__(self,name,clock,req_ready,req_valid,req_payload,resp_ready,
             resp_valid,resp_payload,reset,request_only=False,callback=None,event=None):
         self.name = name
         self.request_only = request_only
-        self.resp_event = Event()
-        self.req_event = Event()
-        super().__init__(callback=callback,event=event)
-        self.req_channel = HalfChannelMonitor(self.name+'_hreq',
-            clock = clock,
-            reset = reset,
-            ready = req_ready,
-            valid = req_valid,
-            payload = req_payload,
-            event=self.req_event
-        )
-        if not self.request_only:
-            self.resp_channel = HalfChannelMonitor(self.name+'_hresp',
-                clock = clock,
-                reset = reset,
-                ready = resp_ready,
-                valid = resp_valid,
-                payload = resp_payload,
-                event=self.resp_event
-            )
+        self.clock = clock
+        self.reset = reset
+        self.req_ready = req_ready
+        self.req_valid = req_valid
+        self.req_payload = req_payload
+        self.resp_ready = resp_ready
+        self.resp_valid = resp_valid
+        self.resp_payload = resp_payload
         self.log = SimLog(f"cocotb.{self.name}")
+        self.low_level = BusLowLevel(
+            clock = self.clock,
+            reset = self.reset,
+            log = self.log
+        )
+        super().__init__(callback=callback,event=event)
     async def _monitor_recv(self):
-        transaction = None
+        req_queue = Queue()
+        resp_queue = Queue()
+        cocotb.fork(self.low_level.recv_half_channel(self.req_ready,self.req_valid,self.req_payload,req_queue))
+        if not self.request_only:
+            cocotb.fork(self.low_level.recv_half_channel(self.resp_ready,self.resp_valid,self.resp_payload,resp_queue))
+        resp_transaction = None
+        req_transaction = None
         while True:
-            await First(self.req_event.wait(), self.resp_event.wait())
-            if self.req_event.is_set():
-                if not self.request_only:
-                    assert transaction is None, f"{self.name}: Receiving new request before sending response to previous request: {transaction}"
-                transaction = MonitorTransaction(
-                    request = self.req_event.data,
-                )
-                if self.request_only:
-                    self.log.debug("Receiving request transaction: %s", transaction)
-                    self._recv(transaction)
-                else:
-                    self.log.debug("Receiving half transaction: %s", transaction)
-                self.req_event.clear()
-            if transaction is not None and self.resp_event.is_set():
-                transaction = MonitorTransaction(
-                    response = self.resp_event.data,
-                    request = transaction.request,
-                )
-                self.log.debug("Receiving full transaction: %s", transaction)
-                self._recv(transaction)
-                transaction = None
-                self.resp_event.clear()
+            if not self.request_only:
+                resp_transaction = await resp_queue.get()
+            req_transaction = await req_queue.get()
+            transaction = ReqRespTransaction(
+                request = req_transaction,
+                response = resp_transaction
+            )
+            translated = self.translate(transaction)
+            self.log.debug("Receiving transaction: %s", translated)
+            self._recv(translated)
+    def translate(self, transaction):
+        return transaction
 
-class ReadBusMonitor(Monitor):
+class ReadBusMonitor(FullChannelMonitor):
     def __init__(self,name,clock,addr_ready,addr_valid,addr,data_ready,
             data_valid,data,reset,request_only=False,callback=None,event=None):
-        self.name = name
-        self.log = SimLog(f"cocotb.{self.name}")
         self.request_only = request_only
-        self.read_event = Event()
-        self.read_channel = FullChannelMonitor(self.name+'_mon',
+        super().__init__(
+            name = name,
             clock = clock,
             reset = reset,
             req_ready = addr_ready,
@@ -129,27 +142,20 @@ class ReadBusMonitor(Monitor):
             resp_valid = data_valid,
             resp_payload = data,
             request_only=request_only,
-            event=self.read_event
+            callback=callback,
+            event=event
         )
-        super().__init__(callback=callback,event=event)
-    async def _monitor_recv(self):
-        while True:
-            await self.read_event.wait()
-            read_transaction = self.read_event.data
-            transaction = BusReadTransaction(addr=read_transaction.request)
-            if not self.request_only:
-                transaction.data=read_transaction.response
-            self._recv(transaction)
-            self.read_event.clear()
+    def translate(self, transaction):
+        translated = BusReadTransaction(addr=transaction.request)
+        if transaction.response is not None:
+            translated.data = transaction.response
+        return translated
 
-class WriteBusMonitor(Monitor):
+class WriteBusMonitor(FullChannelMonitor):
     def __init__(self,name,clock,req_ready,req_valid,req_data,req_addr,
             req_strobe,resp_ready,resp_valid,resp,reset,request_only=False,callback=None,event=None):
-        self.name = name
-        self.log = SimLog(f"cocotb.{self.name}")
-        self.request_only = request_only
-        self.write_event = Event()
-        self.write_channel = FullChannelMonitor(self.name+'_mon',
+        super().__init__(
+            name = name,
             clock = clock,
             reset = reset,
             req_ready = req_ready,
@@ -159,89 +165,88 @@ class WriteBusMonitor(Monitor):
             resp_valid = resp_valid,
             resp_payload = resp,
             request_only=request_only,
-            event=self.write_event
+            callback=callback,
+            event=event
         )
-        super().__init__(callback=callback,event=event)
-    async def _monitor_recv(self):
-        while True:
-            await self.write_event.wait()
-            write_transaction = self.write_event.data
-            transaction = BusWriteTransaction(
-                data=write_transaction.request['data'],
-                addr=write_transaction.request['addr'],
-                strobe=write_transaction.request['strobe'],
-            )
-            if not self.request_only:
-                transaction.response=write_transaction.response
-            self._recv(transaction)
-            self.write_event.clear()
+    def translate(self, transaction):
+        translated = BusWriteTransaction(
+            data=transaction.request['data'],
+            addr=transaction.request['addr'],
+            strobe=transaction.request['strobe'],
+        )
+        if transaction.response is not None:
+            translated.response = transaction.response
+        return translated
 
-class RespChannelDriver(Driver):
-    def __init__(self,name,clock,ready,valid,payload):
+class SourceDriver(Driver):
+    def __init__(self,name,clock,reset,req_ready,resp_valid,resp_ready,resp_payload):
         self.name = name
         self.log = SimLog(f"cocotb.{self.name}")
         self.clock = clock
-        self.ready = ready
-        self.valid = valid
-        self.payload = payload
+        self.reset = reset
+        self.req_ready = req_ready
+        self.resp_valid = resp_valid
+        self.resp_ready = resp_ready
+        self.resp_payload = resp_payload
+        self.low_level = BusLowLevel(
+            clock = self.clock,
+            reset = self.reset,
+            log = self.log
+        )
         super().__init__()
-    async def _driver_send(self, transaction, sync: bool=True):
-        await wait_for_signal(self.ready)
-        await RisingEdge(self.clock)
-        await NextTimeStep()
-        self.valid <= 1
-        if isinstance(transaction, dict):
-            for k in self.payload.keys():
-                self.payload[k] <= int(transaction[k])
-        elif isinstance(transaction, list):
-            for k in range(len(self.payload)):
-                self.payload[k] <= int(transaction[k])
-        else:
-            self.payload <= int(transaction)
-        await RisingEdge(self.clock)
-        await NextTimeStep()
-        self.valid <= 0
+        self.append("assert_ready")
+    async def _driver_send(self, transaction, sync: bool = True):
+        translated = self.translate(transaction)
+        if isinstance(translated, ReqRespTransaction):
+            self.log.debug("Responding read translated: %s", transaction)
+            await self.low_level.send_half_channel(self.resp_ready,self.resp_valid,self.resp_payload,translated.response)
+        elif translated == "assert_ready":
+            self.log.debug("Assert ready")
+            await self.low_level.drive_ready(self.req_ready,True)
+        elif translated == "deassert_ready":
+            self.log.debug("Deassert ready")
+            await self.low_level.drive_ready(self.req_ready,False)
+    def translate(self,transaction):
+        return transaction
 
-class ReqChannelDriver(Driver):
-    def __init__(self,name,clock,ready):
-        self.name = name
-        self.log = SimLog(f"cocotb.{self.name}")
-        self.clock = clock
-        self.ready = ready
-        super().__init__()
-    async def _driver_send(self, transaction, sync: bool=True):
-        await RisingEdge(self.clock)
-        await NextTimeStep()
-        self.ready <= bool(transaction)
-
-class ReadBusSourceDriver(Driver):
+class ReadBusSourceDriver(SourceDriver):
     def __init__(self,name,clock,addr_valid,addr_ready,addr,data_valid,data_ready,data,reset):
-        self.name = name
-        self.log = SimLog(f"cocotb.{self.name}")
-        self.req_driver = ReqChannelDriver(self.name+'.hreq',clock=clock,ready=addr_ready)
-        self.resp_driver = RespChannelDriver(self.name+'.hresp',clock=clock,ready=data_ready,valid=data_valid,payload=data)
-        self.req_driver.append(True)
-        super().__init__()
-    async def _driver_send(self, transaction: BusWriteTransaction, sync: bool = True):
-        if isinstance(transaction, BusReadTransaction):
-            self.log.debug("Responding read transaction: %s", transaction)
-            self.resp_driver.append(transaction.data)
-        elif transaction == "deassert_ready":
-            self.req_driver.append(False)
+        super().__init__(
+            name = name,
+            clock = clock,
+            reset = reset,
+            req_ready=addr_ready,
+            resp_ready=data_ready,
+            resp_valid=data_valid,
+            resp_payload=data
+        )
+    def translate(self,transaction):
+        translated = transaction
+        if isinstance(transaction,BusReadTransaction):
+            translated = ReqRespTransaction(
+                request = transaction.addr,
+                response = transaction.data
+            )
+        return translated
 
-class WriteBusSourceDriver(Driver):
+class WriteBusSourceDriver(SourceDriver):
     def __init__(self,name,clock,req_ready,req_valid,req_data,req_addr,req_strobe,
             resp_ready,resp_valid,resp,reset):
-        self.name = name
-        self.log = SimLog(f"cocotb.{self.name}")
-        self.req_driver = ReqChannelDriver(self.name+'.hreq',clock=clock,ready=req_ready)
-        self.resp_driver = RespChannelDriver(self.name+'.hresp',clock=clock,ready=resp_ready,valid=resp_valid,payload=resp)
-        self.req_driver.append(True)
-        super().__init__()
-    async def _driver_send(self, transaction: BusWriteTransaction, sync: bool = True):
-        if isinstance(transaction, BusWriteTransaction):
-            self.log.debug("Responding read transaction: %s", transaction)
-            self.resp_driver.append(transaction.response)
-        elif transaction == "deassert_ready":
-            self.req_driver.append(False)
+        super().__init__(
+            name=name,
+            clock=clock,
+            reset=reset,
+            req_ready=req_ready,
+            resp_ready=resp_ready,
+            resp_valid=resp_valid,
+            resp_payload=resp
+        )
+    def translate(self,transaction):
+        translated = transaction
+        if isinstance(transaction,BusWriteTransaction):
+            translated = ReqRespTransaction(
+                request = dict(data=transaction.data,addr=transaction.addr,strobe=transaction.strobe),
+                response = transaction.response
+            )
+        return translated
 
