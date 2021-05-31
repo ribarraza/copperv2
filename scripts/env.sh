@@ -9,9 +9,9 @@ if [[ "${WORK_DIR}" != "" ]]; then
     WORK_DIR_OPT="--workdir $WORK_DIR"
 fi
 
-IVY2_DIR=$MOUNT_DIR/work/.ivy2
-SBT_DIR=$MOUNT_DIR/work/.sbt
-CACHE_DIR=$MOUNT_DIR/work/.cache
+IVY2_DIR=$MOUNT_DIR/.ivy2
+SBT_DIR=$MOUNT_DIR/.sbt
+CACHE_DIR=$MOUNT_DIR/.cache
 mkdir -p $IVY2_DIR
 mkdir -p $SBT_DIR
 mkdir -p $CACHE_DIR
