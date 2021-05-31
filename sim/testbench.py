@@ -14,7 +14,7 @@ class TBConfig:
         if cocotb.plusargs.get('dut_copperv1',False):
             self.copperv_bind(self.dut,self.dut)
         else:
-            self.copperv_bind(self.dut,self.dut.copperv2_core)
+            self.copperv_bind(self.dut,self.dut.core)
     def copperv_bind(self,interface,core):
         self.clock = interface.clk
         self.reset = interface.rst
@@ -124,12 +124,15 @@ class Testbench():
             data = transaction.data
             addr = transaction.addr
             strobe = transaction.strobe
-            mask = list(bin(strobe).lstrip('0b'))
+            mask = f"{strobe:04b}"
             for i in range(4):
                 if mask[i]:
                     data_memory[addr+i] = to_bytes(data)[i]
             self.log.debug(f"Data memory: {data_memory}")
             driver_transaction = BusWriteTransaction(
+                data = data,
+                addr = addr,
+                strobe = strobe,
                 response = 1,
             )
             self.bus_dw_driver.append(driver_transaction)
@@ -154,12 +157,12 @@ class Testbench():
             instruction_memory[section_start+addr] = section_data[addr]
         self.log.debug(f"Instruction memory: {instruction_memory}")
         def callback(transaction):
+            addr = transaction.addr
             driver_transaction = "deassert_ready"
-            if transaction.addr < section_start + section_size:
-                addr = transaction.addr
+            if addr < section_start + section_size:
                 driver_transaction = BusReadTransaction(
                     data = from_array(instruction_memory,addr),
-                    addr = transaction.addr,
+                    addr = addr,
                 )
             self.bus_ir_driver.append(driver_transaction)
         return callback

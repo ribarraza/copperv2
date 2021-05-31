@@ -1,4 +1,3 @@
-# defaults
 DUT_COPPERV1 ?= 0
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog

@@ -50,7 +50,7 @@ class TestParameters:
         return '\n' + p
 
 tf = TestFactory(test_function=basic_test)
-tf.add_option('params', [
+tests = [
     TestParameters(
         name = "lui1",
         instructions=["lui t0, 0x123"],
@@ -232,5 +232,6 @@ tf.add_option('params', [
             "zero 0",
         ],
     ),
-])
+]
+tf.add_option('params',tests)
 tf.generate_tests()
