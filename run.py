@@ -49,7 +49,13 @@ steps = dict(
     test = dict(args=[
         f'ln -fs ../../scripts/cocotb.mk ./Makefile',
         'make 2>&1 | tee sim.log',
-        r'sed -r -i "s/[[:cntrl:]]\[[0-9]{1,3}m//g" sim.log'],cwd=sim_work_dir,env={"PYTHONPATH":str((root/'sim').resolve())}),
+        r'sed -r -i "s/[[:cntrl:]]\[[0-9]{1,3}m//g" sim.log'],
+            cwd=sim_work_dir,
+            env={
+                "PYTHONPATH":str((root/'sim').resolve()),
+                "PYTHONPYCACHEPREFIX":str(sim_work_dir.resolve()/'__pycache__'),
+            }
+        ),
 )
 step_list = list(steps.keys())
 
