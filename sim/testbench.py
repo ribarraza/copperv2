@@ -7,6 +7,7 @@ from cocotb.triggers import RisingEdge, ClockCycles
 from bus import ReadBusMonitor, ReadBusSourceDriver, BusReadTransaction, BusWriteTransaction, WriteBusSourceDriver, WriteBusMonitor
 from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransaction, RegFileWriteTransaction
 from riscv_utils import compile_test, crt0
+from cocotb_utils import from_array, to_bytes
 
 class TBConfig:
     def __init__(self, dut):
@@ -68,16 +69,6 @@ class TBConfig:
             reset = self.reset,
         )
 
-def from_array(data,addr):
-    buf = []
-    for i in range(4):
-        assert addr+i in data, f"Invalid data address: 0x{addr+i:X}"
-        buf.append(data[addr+i])
-    return int.from_bytes(buf,byteorder='little')
-
-def to_bytes(data):
-    return (data).to_bytes(length=4,byteorder='little')
-
 class Testbench():
     def __init__(self, dut, params):
         self.log = SimLog("cocotb.Testbench")
@@ -85,27 +76,25 @@ class Testbench():
         self.clock = config.clock
         self.reset = config.reset
         self.reset.setimmediatevalue(0)
-        # parse data memory in string format
-        self.data_memory = {}
-        for t in params.data_memory:
-            t = BusReadTransaction.from_string(t)
-            for i in range(4):
-                self.data_memory[t.addr+i] =  to_bytes(t.data)[i]
+        self.data_memory = self.parse_data_memory(params.data_memory)
+        self.log.debug(f"Data memory: {self.data_memory}")
+        self.instruction_memory = self.compile_instructions(params.instructions)
+        self.log.debug(f"Instruction memory: {self.instruction_memory}")
         ## Instruction read
         self.bus_ir_driver = ReadBusSourceDriver("bus_ir",**config.ir_bind)
         self.bus_ir_monitor = ReadBusMonitor("bus_ir",**config.ir_bind)
         self.bus_ir_req_monitor = ReadBusMonitor("bus_ir_req",**config.ir_bind,request_only=True,
-            callback=self.instruction_read_callback(params.instructions))
+            callback=self.instruction_read_callback)
         ## Data read
         self.bus_dr_driver = ReadBusSourceDriver("bus_dr",**config.dr_bind)
         self.bus_dr_monitor = ReadBusMonitor("bus_dr",**config.dr_bind)
         self.bus_dr_req_monitor = ReadBusMonitor("bus_dr_req",**config.dr_bind,request_only=True,
-            callback=self.data_read_callback(self.data_memory))
+            callback=self.data_read_callback)
         ## Data write
         self.bus_dw_driver = WriteBusSourceDriver("bus_dw",**config.dw_bind)
         self.bus_dw_monitor = WriteBusMonitor("bus_dw",**config.dw_bind)
         self.bus_dw_req_monitor = WriteBusMonitor("bus_dw_req",**config.dw_bind,request_only=True,
-            callback=self.data_write_callback(self.data_memory))
+            callback=self.data_write_callback)
         ## Regfile
         self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",**config.regfile_write_bind)
         self.regfile_read_monitor = RegFileReadMonitor("regfile_read",**config.regfile_read_bind)
@@ -119,35 +108,16 @@ class Testbench():
         self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read)
         self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
         self.scoreboard.add_interface(self.bus_dw_monitor, self.expected_data_write)
-    def data_write_callback(self, data_memory):
-        def callback(transaction):
-            data = transaction.data
-            addr = transaction.addr
-            strobe = transaction.strobe
-            mask = f"{strobe:04b}"
+    @staticmethod
+    def parse_data_memory(params_data_memory):
+        data_memory = {}
+        for t in params_data_memory:
+            t = BusReadTransaction.from_string(t)
             for i in range(4):
-                if mask[i]:
-                    data_memory[addr+i] = to_bytes(data)[i]
-            self.log.debug(f"Data memory: {data_memory}")
-            driver_transaction = BusWriteTransaction(
-                data = data,
-                addr = addr,
-                strobe = strobe,
-                response = 1,
-            )
-            self.bus_dw_driver.append(driver_transaction)
-        return callback
-    def data_read_callback(self, data_memory):
-        self.log.debug(f"Data memory: {data_memory}")
-        def callback(transaction):
-            addr = transaction.addr
-            driver_transaction = BusReadTransaction(
-                data = from_array(data_memory,addr),
-                addr = addr,
-            )
-            self.bus_dr_driver.append(driver_transaction)
-        return callback
-    def instruction_read_callback(self, instructions):
+                data_memory[t.addr+i] =  to_bytes(t.data)[i]
+        return data_memory
+    @staticmethod
+    def compile_instructions(instructions):
         instruction_memory = {}
         elf = compile_test(crt0 + instructions)
         section_start = elf['.text']['addr']
@@ -155,17 +125,34 @@ class Testbench():
         section_size = len(section_data)
         for addr in range(section_size):
             instruction_memory[section_start+addr] = section_data[addr]
-        self.log.debug(f"Instruction memory: {instruction_memory}")
-        def callback(transaction):
-            addr = transaction.addr
-            driver_transaction = "deassert_ready"
-            if addr < section_start + section_size:
-                driver_transaction = BusReadTransaction(
-                    data = from_array(instruction_memory,addr),
-                    addr = addr,
-                )
-            self.bus_ir_driver.append(driver_transaction)
-        return callback
+        return instruction_memory
+    def data_write_callback(self,transaction):
+        mask = f"{transaction.strobe:04b}"
+        for i in range(4):
+            if mask[i]:
+                self.data_memory[transaction.addr+i] = to_bytes(transaction.data)[i]
+        self.log.debug(f"Write data memory: {self.data_memory}")
+        driver_transaction = BusWriteTransaction(
+            data = transaction.data,
+            addr = transaction.addr,
+            strobe = transaction.strobe,
+            response = 1,
+        )
+        self.bus_dw_driver.append(driver_transaction)
+    def data_read_callback(self,transaction):
+        driver_transaction = BusReadTransaction(
+            data = from_array(self.data_memory,transaction.addr),
+            addr = transaction.addr,
+        )
+        self.bus_dr_driver.append(driver_transaction)
+    def instruction_read_callback(self, transaction):
+        driver_transaction = "deassert_ready"
+        if transaction.addr < max(self.instruction_memory.keys()):
+            driver_transaction = BusReadTransaction(
+                data = from_array(self.instruction_memory,transaction.addr),
+                addr = transaction.addr,
+            )
+        self.bus_ir_driver.append(driver_transaction)
     def start_clock(self):
         cocotb.fork(Clock(self.clock,10,units='ns').start())
     async def do_reset(self):

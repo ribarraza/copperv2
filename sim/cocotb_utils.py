@@ -35,3 +35,13 @@ async def wait_for_nsignal(signal):
         await FallingEdge(signal)
         await ReadOnly()
     await NextTimeStep()
+
+def from_array(data,addr):
+    buf = []
+    for i in range(4):
+        assert addr+i in data, f"Invalid data address: 0x{addr+i:X}"
+        buf.append(data[addr+i])
+    return int.from_bytes(buf,byteorder='little')
+
+def to_bytes(data):
+    return (data).to_bytes(length=4,byteorder='little')
