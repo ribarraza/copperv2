@@ -233,5 +233,6 @@ tests = [
         ],
     ),
 ]
+tests = [tests[0]]
 tf.add_option('params',tests)
 tf.generate_tests()

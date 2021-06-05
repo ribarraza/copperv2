@@ -101,7 +101,8 @@ object CoppervCore {
 
 class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule with RequireSyncReset {
   val bus = IO(new CoppervBus(addr_width=CoppervCore.ADDR_WIDTH,data_width=CoppervCore.DATA_WIDTH,resp_width=CoppervCore.RESP_WIDTH))
-  val control = Module(new control_unit)
+  //val control = Module(new control_unit)
+  val control = Module(new ControlUnit)
   val idec = Module(new idecoder)
   val regfile = Module(new register_file)
   val alu = Module(new arith_logic_unit)
@@ -109,8 +110,8 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   val inst_valid = RegInit(0.B)
   val inst_fetch = Wire(UInt())
   val pc = RegInit(config.pc_init.U)
-  val pc_en = MuxLookup(control.io.pc_next_sel,true.B,Array(0.U -> false.B))
-  val pc_next = MuxLookup(control.io.pc_next_sel,0.U,Array(
+  val pc_en = MuxLookup(control.io.pc_next_sel.asUInt(),true.B,Array(0.U -> false.B))
+  val pc_next = MuxLookup(control.io.pc_next_sel.asUInt(),0.U,Array(
     1.U -> (pc + 4.U),
     2.U -> (pc + idec.io.imm),
     3.U -> (regfile.io.rs1_dout + idec.io.imm),
@@ -130,13 +131,11 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   }
   bus.ir.addr.valid := inst_fetch
   idec.io.inst := inst
-  bus.ir.data.ready := 1.B;
-  control.io.clk := clock
-  control.io.rst := ~reset.asBool()
-  control.io.inst_type := idec.io.inst_type
+  bus.ir.data.ready := 1.B
+  control.io.inst_type := InstType(idec.io.inst_type)
   control.io.inst_valid := inst_valid
   control.io.alu_comp := alu.io.alu_comp
-  control.io.funct := idec.io.funct
+  control.io.funct := Funct(idec.io.funct)
   inst_fetch := control.io.inst_fetch
   regfile.io.clk := clock
   regfile.io.rst := ~reset.asBool()
@@ -215,17 +214,17 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
     12.U -> read_data_t(7,0).zext,
     13.U -> read_data_t(15,0).zext,
   )).asUInt
-  regfile.io.rd_din := MuxLookup(control.io.rd_din_sel,0.U,Array(
+  regfile.io.rd_din := MuxLookup(control.io.rd_din_sel.asUInt(),0.U,Array(
     0.U -> idec.io.imm,
     1.U -> alu.io.alu_dout,
     2.U -> ext_read_data
   ))
-  alu.io.alu_op := control.io.alu_op
-  alu.io.alu_din1 := MuxLookup(control.io.alu_din1_sel,0.U,Array(
+  alu.io.alu_op := control.io.alu_op.asUInt()
+  alu.io.alu_din1 := MuxLookup(control.io.alu_din1_sel.asUInt(),0.U,Array(
     1.U -> regfile.io.rs1_dout,
     2.U -> pc,
   ))
-  alu.io.alu_din2 := MuxLookup(control.io.alu_din2_sel,0.U,Array(
+  alu.io.alu_din2 := MuxLookup(control.io.alu_din2_sel.asUInt(),0.U,Array(
     1.U -> idec.io.imm,
     2.U -> regfile.io.rs2_dout,
     3.U -> 4.U,

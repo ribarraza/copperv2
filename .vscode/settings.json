@@ -20,4 +20,7 @@
     "gitlens.codeLens.recentChange.enabled": false,
     "vim.hlsearch": true,
     "editor.wordSeparators": "`~!@#$%^&*()-=+[{]}\\|;:'\",<>/?",
+    "[scala]": {
+        "editor.tabSize": 2
+    }
 }
