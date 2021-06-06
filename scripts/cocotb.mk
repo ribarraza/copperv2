@@ -10,7 +10,7 @@ VERILOG_SOURCES += $(wildcard $(RTL_V1_DIR)/*.v)
 COMPILE_ARGS += -I$(RTL_V1_DIR)/include
 
 export PYTHONBREAKPOINT=remote_pdb.set_trace
-export REMOTE_PDB_HOST=0.0.0.0
+export REMOTE_PDB_HOST=localhost
 export REMOTE_PDB_PORT=4440
 
 ROOT = $(abspath ../..)
