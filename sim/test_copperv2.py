@@ -14,7 +14,6 @@ from cocotb_utils import verilog_string, get_test_name, get_top_module
 @cocotb.coroutine
 async def basic_test(dut, params):
     """ Copperv2 base test """
-    breakpoint()
     test_name = f"{get_test_name()}_{params.name}"
     dut._log.info(f"Test {test_name} started")
 
@@ -228,6 +227,6 @@ tests = [
         ],
     ),
 ]
-tests = [tests[0]]
+#tests = [tests[4]]
 tf.add_option('params',tests)
 tf.generate_tests()

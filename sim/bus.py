@@ -200,6 +200,7 @@ class SourceDriver(Driver):
         self.transaction_type = transaction_type
         super().__init__()
         self.append("assert_ready")
+        self.append(self.transaction_type())
     async def _driver_send(self, transaction, sync: bool = True):
         if isinstance(transaction, self.transaction_type):
             transaction = self.transaction_type.to_reqresp(transaction)

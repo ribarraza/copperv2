@@ -8,6 +8,7 @@ __pycache__/
 .metals/
 metals.sbt
 .ivy2/
+.venv/
 
 ### XilinxISE template
 # intermediate build files

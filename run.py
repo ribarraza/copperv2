@@ -45,7 +45,7 @@ sim_work_dir=work_dir/'sim'
 sim_work_dir.mkdir(exist_ok=True)
 
 steps = dict(
-    chisel = f'sbt "runMain Copperv2Driver --target-dir {chisel_work_dir}"',
+    chisel = f'sbt "runMain Copperv2Driver"',
     test = dict(args=[
         f'ln -fs ../../scripts/cocotb.mk ./Makefile',
         'make 2>&1 | tee sim.log',

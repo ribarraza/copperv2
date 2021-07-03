@@ -78,6 +78,12 @@ object AluOp extends ChiselEnum {
   val SLTU = Value
 }
 
+object AluComp extends ChiselEnum {
+  val EQ = Value
+  val LT = Value
+  val LTU = Value
+}
+
 object State extends ChiselEnum {
   val RESET  = Value
   val IDLE   = Value

@@ -49,11 +49,12 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   val inst_valid = RegInit(0.B)
   val inst_fetch = Wire(UInt())
   val pc = RegInit(config.pc_init.U)
-  val pc_en = MuxLookup(control.io.pc_next_sel.asUInt(),true.B,Array(0.U -> false.B))
-  val pc_next = MuxLookup(control.io.pc_next_sel.asUInt(),0.U,Array(
-    1.U -> (pc + 4.U),
-    2.U -> (pc + idec.io.imm),
-    3.U -> (regfile.io.rs1_dout + idec.io.imm),
+  val pc_en = control.io.pc_next_sel =/= PcNextSel.STALL
+  val pc_next = MuxLookup(control.io.pc_next_sel.asUInt,pc,Array(
+    PcNextSel.STALL.asUInt -> pc,
+    PcNextSel.INCR.asUInt -> (pc + 4.U),
+    PcNextSel.ADD_IMM.asUInt -> (pc + idec.io.imm),
+    PcNextSel.ADD_RS1_IMM.asUInt -> (regfile.io.rs1_dout + idec.io.imm),
   ))
   when (pc_en) {
     pc := pc_next
@@ -98,9 +99,12 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   } .elsewhen(idec.io.funct === 11.U) {
     write_strobe := "b1111".U
     write_data   := regfile.io.rs2_dout
-  } 
+  }
   when (bus.dw.resp.fire()) {
-    write_valid := bus.dw.resp.bits
+    write_valid := MuxLookup(bus.dw.resp.bits,false.B,Array(
+      0.U -> false.B,
+      1.U -> true.B
+    ))
   } .otherwise {
     write_valid := 0.B
   }
@@ -153,20 +157,20 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
     12.U -> read_data_t(7,0).zext,
     13.U -> read_data_t(15,0).zext,
   )).asUInt
-  regfile.io.rd_din := MuxLookup(control.io.rd_din_sel.asUInt(),0.U,Array(
-    0.U -> idec.io.imm,
-    1.U -> alu.io.alu_dout,
-    2.U -> ext_read_data
+  regfile.io.rd_din := MuxLookup(control.io.rd_din_sel.asUInt,idec.io.imm,Array(
+    RdDinSel.IMM.asUInt -> idec.io.imm,
+    RdDinSel.ALU.asUInt -> alu.io.alu_dout,
+    RdDinSel.MEM.asUInt -> ext_read_data
   ))
-  alu.io.alu_op := control.io.alu_op.asUInt()
-  alu.io.alu_din1 := MuxLookup(control.io.alu_din1_sel.asUInt(),0.U,Array(
-    1.U -> regfile.io.rs1_dout,
-    2.U -> pc,
+  alu.io.alu_op := control.io.alu_op.asUInt
+  alu.io.alu_din1 := MuxLookup(control.io.alu_din1_sel.asUInt,regfile.io.rs1_dout,Array(
+    AluDin1Sel.RS1.asUInt -> regfile.io.rs1_dout,
+    AluDin1Sel.PC.asUInt -> pc,
   ))
-  alu.io.alu_din2 := MuxLookup(control.io.alu_din2_sel.asUInt(),0.U,Array(
-    1.U -> idec.io.imm,
-    2.U -> regfile.io.rs2_dout,
-    3.U -> 4.U,
+  alu.io.alu_din2 := MuxLookup(control.io.alu_din2_sel.asUInt,regfile.io.rs2_dout,Array(
+    AluDin2Sel.IMM.asUInt -> idec.io.imm,
+    AluDin2Sel.RS2.asUInt -> regfile.io.rs2_dout,
+    AluDin2Sel.CONST_4.asUInt -> 4.U,
   ))
   val dr_data_ready = RegInit(1.B)
   bus.dr.data.ready := dr_data_ready
