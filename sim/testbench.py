@@ -157,7 +157,7 @@ class Testbench():
         cocotb.fork(Clock(self.clock,10,units='ns').start())
     async def do_reset(self):
         self.reset <= 0
-        await ClockCycles(self.clock,10)
+        await ClockCycles(self.clock,4)
         self.reset <= 1
         await RisingEdge(self.clock)
     @cocotb.coroutine
@@ -175,4 +175,4 @@ class Testbench():
                 self.log.debug(f"Pending transactions: {pending}")
             last_pending = pending
             await RisingEdge(self.clock)
-        await ClockCycles(self.clock,20)
+        await ClockCycles(self.clock,2)
