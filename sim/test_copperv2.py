@@ -11,6 +11,12 @@ from cocotb.result import TestSuccess, TestComplete
 from testbench import Testbench
 from cocotb_utils import verilog_string, get_test_name, get_top_module
 
+if os.environ.get("VS_DEBUG",False):
+    import debugpy
+    debugpy.listen(4440)
+    print("Info: debugpy waiting for client...")
+    debugpy.wait_for_client()
+
 @cocotb.coroutine
 async def basic_test(dut, params):
     """ Copperv2 base test """
@@ -23,9 +29,8 @@ async def basic_test(dut, params):
         SimLog("cocotb").setLevel(logging.DEBUG)
 
     tb = Testbench(dut, params)
-
-    tb.start_clock()
-    await tb.do_reset()
+    tb.bus_bfm.start_clock()
+    await tb.bus_bfm.do_reset()
     await with_timeout(tb.finish(), 10000, 'ns')
 
     dut._log.info(f"Test {test_name} finished")
@@ -227,6 +232,6 @@ tests = [
         ],
     ),
 ]
-#tests = [tests[4]]
+#tests = [tests[0]]
 tf.add_option('params',tests)
 tf.generate_tests()

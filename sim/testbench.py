@@ -1,109 +1,90 @@
 import cocotb
 from cocotb.log import SimLog
 from cocotb_bus.scoreboard import Scoreboard
-from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, ClockCycles
 
-from bus import ReadBusMonitor, ReadBusSourceDriver, BusReadTransaction, BusWriteTransaction, WriteBusSourceDriver, WriteBusMonitor
-from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransaction, RegFileWriteTransaction
+from bus import BusReadTransaction, BusWriteTransaction, BusBfm, BusMonitor, BusSourceDriver
+from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransaction, RegFileWriteTransaction, RegFileBfm
 from riscv_utils import compile_test, crt0
 from cocotb_utils import from_array, to_bytes
 
-class TBConfig:
-    def __init__(self, dut):
+class Testbench():
+    def __init__(self, dut, params):
+        self.log = SimLog("cocotb.Testbench")
         self.dut = dut
+        self.clock = self.dut.clk
+        self.reset = self.dut.rst
+        core = self.dut.core
         if cocotb.plusargs.get('dut_copperv1',False):
-            self.copperv_bind(self.dut,self.dut)
-        else:
-            self.copperv_bind(self.dut,self.dut.core)
-    def copperv_bind(self,interface,core):
-        self.clock = interface.clk
-        self.reset = interface.rst
-        self.ir_bind = dict(
+            core = self.dut
+        self.reset.setimmediatevalue(0)
+        ## Process parameters
+        self.data_memory = self.parse_data_memory(params.data_memory)
+        self.instruction_memory = self.compile_instructions(params.instructions)
+        self.expected_regfile_read = [RegFileReadTransaction.from_string(t) for t in params.expected_regfile_read]
+        self.expected_regfile_write = [RegFileWriteTransaction.from_string(t) for t in params.expected_regfile_write]
+        self.expected_data_read = [BusReadTransaction.from_string(t) for t in params.expected_data_read]
+        self.expected_data_write = [BusWriteTransaction.from_string(t) for t in params.expected_data_write]
+        self.log.debug(f"Data memory: {self.data_memory}")
+        self.log.debug(f"Instruction memory: {self.instruction_memory}")
+        ## Bus functional models
+        self.bus_bfm = BusBfm(
             clock = self.clock,
-            addr_valid = interface.ir_addr_valid,
-            addr_ready = interface.ir_addr_ready,
-            addr = interface.ir_addr,
-            data_valid = interface.ir_data_valid,
-            data_ready = interface.ir_data_ready,
-            data = interface.ir_data,
             reset = self.reset,
+            ir_addr_valid = self.dut.ir_addr_valid,
+            ir_addr_ready = self.dut.ir_addr_ready,
+            ir_addr = self.dut.ir_addr,
+            ir_data_valid = self.dut.ir_data_valid,
+            ir_data_ready = self.dut.ir_data_ready,
+            ir_data = self.dut.ir_data,
+            dr_addr_valid = self.dut.dr_addr_valid,
+            dr_addr_ready = self.dut.dr_addr_ready,
+            dr_addr = self.dut.dr_addr,
+            dr_data_valid = self.dut.dr_data_valid,
+            dr_data_ready = self.dut.dr_data_ready,
+            dr_data = self.dut.dr_data,
+            dw_data_addr_ready = self.dut.dw_data_addr_ready,
+            dw_data_addr_valid = self.dut.dw_data_addr_valid,
+            dw_data = self.dut.dw_data,
+            dw_addr = self.dut.dw_addr,
+            dw_strobe = self.dut.dw_strobe,
+            dw_resp_ready = self.dut.dw_resp_ready,
+            dw_resp_valid = self.dut.dw_resp_valid,
+            dw_resp = self.dut.dw_resp,
         )
-        self.dr_bind = dict(
+        regfile_bfm = RegFileBfm(
             clock = self.clock,
-            addr_valid = interface.dr_addr_valid,
-            addr_ready = interface.dr_addr_ready,
-            addr = interface.dr_addr,
-            data_valid = interface.dr_data_valid,
-            data_ready = interface.dr_data_ready,
-            data = interface.dr_data,
             reset = self.reset,
-        )
-        self.dw_bind = dict(
-            clock = self.clock,
-            req_ready = interface.dw_data_addr_ready,
-            req_valid = interface.dw_data_addr_valid,
-            req_data = interface.dw_data,
-            req_addr = interface.dw_addr,
-            req_strobe = interface.dw_strobe,
-            resp_ready = interface.dw_resp_ready,
-            resp_valid = interface.dw_resp_valid,
-            resp = interface.dw_resp,
-            reset = self.reset,
-        )
-        self.regfile_write_bind = dict(
-            clock = self.clock,
             rd_en = core.regfile.rd_en,
             rd_addr = core.regfile.rd,
             rd_data = core.regfile.rd_din,
-            reset = self.reset,
-        )
-        self.regfile_read_bind = dict(
-            clock = self.clock,
             rs1_en = core.regfile.rs1_en,
             rs1_addr = core.regfile.rs1,
             rs1_data = core.regfile.rs1_dout,
             rs2_en = core.regfile.rs2_en,
             rs2_addr = core.regfile.rs2,
             rs2_data = core.regfile.rs2_dout,
-            reset = self.reset,
         )
-
-class Testbench():
-    def __init__(self, dut, params):
-        self.log = SimLog("cocotb.Testbench")
-        config = TBConfig(dut)
-        self.clock = config.clock
-        self.reset = config.reset
-        self.reset.setimmediatevalue(0)
-        self.data_memory = self.parse_data_memory(params.data_memory)
-        self.log.debug(f"Data memory: {self.data_memory}")
-        self.instruction_memory = self.compile_instructions(params.instructions)
-        self.log.debug(f"Instruction memory: {self.instruction_memory}")
         ## Instruction read
-        self.bus_ir_driver = ReadBusSourceDriver("bus_ir",**config.ir_bind)
-        self.bus_ir_monitor = ReadBusMonitor("bus_ir",**config.ir_bind)
-        self.bus_ir_req_monitor = ReadBusMonitor("bus_ir_req",**config.ir_bind,request_only=True,
+        self.bus_ir_driver = BusSourceDriver("bus_ir",BusReadTransaction,self.bus_bfm.send_ir_resp,self.bus_bfm.drive_ir_ready)
+        self.bus_ir_monitor = BusMonitor("bus_ir",BusReadTransaction,self.bus_bfm.recv_ir_req,self.bus_bfm.recv_ir_resp)
+        self.bus_ir_req_monitor = BusMonitor("bus_ir_req",BusReadTransaction,self.bus_bfm.recv_ir_req,
             callback=self.instruction_read_callback)
         ## Data read
-        self.bus_dr_driver = ReadBusSourceDriver("bus_dr",**config.dr_bind)
-        self.bus_dr_monitor = ReadBusMonitor("bus_dr",**config.dr_bind)
-        self.bus_dr_req_monitor = ReadBusMonitor("bus_dr_req",**config.dr_bind,request_only=True,
+        self.bus_dr_driver = BusSourceDriver("bus_dr",BusReadTransaction,self.bus_bfm.send_dr_resp,self.bus_bfm.drive_dr_ready)
+        self.bus_dr_monitor = BusMonitor("bus_dr",BusReadTransaction,self.bus_bfm.recv_dr_req,self.bus_bfm.recv_dr_resp)
+        self.bus_dr_req_monitor = BusMonitor("bus_dr_req",BusReadTransaction,self.bus_bfm.recv_dr_req,
             callback=self.data_read_callback)
         ## Data write
-        self.bus_dw_driver = WriteBusSourceDriver("bus_dw",**config.dw_bind)
-        self.bus_dw_monitor = WriteBusMonitor("bus_dw",**config.dw_bind)
-        self.bus_dw_req_monitor = WriteBusMonitor("bus_dw_req",**config.dw_bind,request_only=True,
+        self.bus_dw_driver = BusSourceDriver("bus_dw",BusWriteTransaction,self.bus_bfm.send_dw_resp,self.bus_bfm.drive_dw_ready)
+        self.bus_dw_monitor = BusMonitor("bus_dw",BusWriteTransaction,self.bus_bfm.recv_dw_req,self.bus_bfm.recv_dw_resp)
+        self.bus_dw_req_monitor = BusMonitor("bus_dw_req",BusWriteTransaction,self.bus_bfm.recv_dw_req,
             callback=self.data_write_callback)
         ## Regfile
-        self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",**config.regfile_write_bind)
-        self.regfile_read_monitor = RegFileReadMonitor("regfile_read",**config.regfile_read_bind)
+        self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",regfile_bfm)
+        self.regfile_read_monitor = RegFileReadMonitor("regfile_read",regfile_bfm)
         ## Self checking
         self.scoreboard = Scoreboard(dut)
-        self.expected_regfile_read = [RegFileReadTransaction.from_string(t) for t in params.expected_regfile_read]
-        self.expected_regfile_write = [RegFileWriteTransaction.from_string(t) for t in params.expected_regfile_write]
-        self.expected_data_read = [BusReadTransaction.from_string(t) for t in params.expected_data_read]
-        self.expected_data_write = [BusWriteTransaction.from_string(t) for t in params.expected_data_write]
         self.scoreboard.add_interface(self.regfile_write_monitor, self.expected_regfile_write)
         self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read)
         self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
@@ -114,7 +95,7 @@ class Testbench():
         for t in params_data_memory:
             t = BusReadTransaction.from_string(t)
             for i in range(4):
-                data_memory[t.addr+i] =  to_bytes(t.data)[i]
+                data_memory[t.addr+i] = to_bytes(t.data)[i]
         return data_memory
     @staticmethod
     def compile_instructions(instructions):
@@ -153,13 +134,6 @@ class Testbench():
                 addr = transaction.addr,
             )
         self.bus_ir_driver.append(driver_transaction)
-    def start_clock(self):
-        cocotb.fork(Clock(self.clock,10,units='ns').start())
-    async def do_reset(self):
-        self.reset <= 0
-        await ClockCycles(self.clock,4)
-        self.reset <= 1
-        await RisingEdge(self.clock)
     @cocotb.coroutine
     async def finish(self):
         last_pending = ""
