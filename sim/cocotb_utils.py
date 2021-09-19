@@ -6,6 +6,9 @@ from cocotb_bus.drivers import BusDriver, Driver
 from cocotb.log import SimLog
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, FallingEdge
 
+def anext(async_generator):
+    return async_generator.__anext__()
+
 def get_top_module(name):
     return cocotb.handle.SimHandle(cocotb.simulator.get_root_handle(name))
 

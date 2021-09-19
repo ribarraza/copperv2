@@ -5,6 +5,7 @@ from cocotb.triggers import RisingEdge, ReadOnly, Combine
 from cocotb_bus.monitors import Monitor
 from cocotb.log import SimLog
 
+from cocotb_utils import anext
 from riscv_utils import reg_abi_map
 
 @dataclasses.dataclass

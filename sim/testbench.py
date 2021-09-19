@@ -5,11 +5,14 @@ from cocotb.triggers import RisingEdge, ClockCycles
 
 from bus import BusReadTransaction, BusWriteTransaction, BusBfm, BusMonitor, BusSourceDriver
 from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransaction, RegFileWriteTransaction, RegFileBfm
-from riscv_utils import compile_test, crt0
 from cocotb_utils import from_array, to_bytes
 
 class Testbench():
-    def __init__(self, dut, params):
+    def __init__(self, dut, params, 
+            instruction_memory = None, 
+            data_memory = None, 
+            enable_self_checking = True
+        ):
         self.log = SimLog("cocotb.Testbench")
         self.dut = dut
         self.clock = self.dut.clk
@@ -19,12 +22,13 @@ class Testbench():
             core = self.dut
         self.reset.setimmediatevalue(0)
         ## Process parameters
-        self.data_memory = self.parse_data_memory(params.data_memory)
-        self.instruction_memory = self.compile_instructions(params.instructions)
-        self.expected_regfile_read = [RegFileReadTransaction.from_string(t) for t in params.expected_regfile_read]
-        self.expected_regfile_write = [RegFileWriteTransaction.from_string(t) for t in params.expected_regfile_write]
-        self.expected_data_read = [BusReadTransaction.from_string(t) for t in params.expected_data_read]
-        self.expected_data_write = [BusWriteTransaction.from_string(t) for t in params.expected_data_write]
+        self.instruction_memory = instruction_memory
+        self.data_memory = data_memory
+        if enable_self_checking:
+            self.expected_regfile_read = [RegFileReadTransaction.from_string(t) for t in params.expected_regfile_read]
+            self.expected_regfile_write = [RegFileWriteTransaction.from_string(t) for t in params.expected_regfile_write]
+            self.expected_data_read = [BusReadTransaction.from_string(t) for t in params.expected_data_read]
+            self.expected_data_write = [BusWriteTransaction.from_string(t) for t in params.expected_data_write]
         self.log.debug(f"Data memory: {self.data_memory}")
         self.log.debug(f"Instruction memory: {self.instruction_memory}")
         ## Bus functional models
@@ -52,19 +56,20 @@ class Testbench():
             dw_resp_valid = self.dut.dw_resp_valid,
             dw_resp = self.dut.dw_resp,
         )
-        regfile_bfm = RegFileBfm(
-            clock = self.clock,
-            reset = self.reset,
-            rd_en = core.regfile.rd_en,
-            rd_addr = core.regfile.rd,
-            rd_data = core.regfile.rd_din,
-            rs1_en = core.regfile.rs1_en,
-            rs1_addr = core.regfile.rs1,
-            rs1_data = core.regfile.rs1_dout,
-            rs2_en = core.regfile.rs2_en,
-            rs2_addr = core.regfile.rs2,
-            rs2_data = core.regfile.rs2_dout,
-        )
+        if enable_self_checking:
+            regfile_bfm = RegFileBfm(
+                clock = self.clock,
+                reset = self.reset,
+                rd_en = core.regfile.rd_en,
+                rd_addr = core.regfile.rd,
+                rd_data = core.regfile.rd_din,
+                rs1_en = core.regfile.rs1_en,
+                rs1_addr = core.regfile.rs1,
+                rs1_data = core.regfile.rs1_dout,
+                rs2_en = core.regfile.rs2_en,
+                rs2_addr = core.regfile.rs2,
+                rs2_data = core.regfile.rs2_dout,
+            )
         ## Instruction read
         self.bus_ir_driver = BusSourceDriver("bus_ir",BusReadTransaction,self.bus_bfm.send_ir_resp,self.bus_bfm.drive_ir_ready)
         self.bus_ir_monitor = BusMonitor("bus_ir",BusReadTransaction,self.bus_bfm.recv_ir_req,self.bus_bfm.recv_ir_resp)
@@ -80,33 +85,16 @@ class Testbench():
         self.bus_dw_monitor = BusMonitor("bus_dw",BusWriteTransaction,self.bus_bfm.recv_dw_req,self.bus_bfm.recv_dw_resp)
         self.bus_dw_req_monitor = BusMonitor("bus_dw_req",BusWriteTransaction,self.bus_bfm.recv_dw_req,
             callback=self.data_write_callback)
-        ## Regfile
-        self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",regfile_bfm)
-        self.regfile_read_monitor = RegFileReadMonitor("regfile_read",regfile_bfm)
-        ## Self checking
-        self.scoreboard = Scoreboard(dut)
-        self.scoreboard.add_interface(self.regfile_write_monitor, self.expected_regfile_write)
-        self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read)
-        self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
-        self.scoreboard.add_interface(self.bus_dw_monitor, self.expected_data_write)
-    @staticmethod
-    def parse_data_memory(params_data_memory):
-        data_memory = {}
-        for t in params_data_memory:
-            t = BusReadTransaction.from_string(t)
-            for i in range(4):
-                data_memory[t.addr+i] = to_bytes(t.data)[i]
-        return data_memory
-    @staticmethod
-    def compile_instructions(instructions):
-        instruction_memory = {}
-        elf = compile_test(crt0 + instructions)
-        section_start = elf['.text']['addr']
-        section_data = elf['.text']['data']
-        section_size = len(section_data)
-        for addr in range(section_size):
-            instruction_memory[section_start+addr] = section_data[addr]
-        return instruction_memory
+        if enable_self_checking:
+            ## Regfile
+            self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",regfile_bfm)
+            self.regfile_read_monitor = RegFileReadMonitor("regfile_read",regfile_bfm)
+            ## Self checking
+            self.scoreboard = Scoreboard(dut)
+            self.scoreboard.add_interface(self.regfile_write_monitor, self.expected_regfile_write)
+            self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read)
+            self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
+            self.scoreboard.add_interface(self.bus_dw_monitor, self.expected_data_write)
     def data_write_callback(self,transaction):
         mask = f"{transaction.strobe:04b}"
         for i in range(4):

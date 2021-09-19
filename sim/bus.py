@@ -9,7 +9,7 @@ from cocotb_bus.drivers import Driver
 from cocotb.log import SimLog
 from cocotb.queue import Queue
 
-from cocotb_utils import wait_for_signal
+from cocotb_utils import wait_for_signal, anext
 
 @dataclasses.dataclass
 class BusReadTransaction:
