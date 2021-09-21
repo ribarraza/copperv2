@@ -13,27 +13,38 @@ from cocotb_utils import wait_for_signal, anext
 
 @dataclasses.dataclass
 class BusReadTransaction:
+    bus_name: str
     data: int = None
     addr: int = None
     @classmethod
     def from_string(cls, string):
         addr, data = string.split()
-        return cls(int(data,0),int(addr,0))
+        return cls(
+            bus_name=None,
+            data=int(data,0),
+            addr=int(addr,0))
     @classmethod
-    def from_reqresp(cls, request, response = None):
-        new = cls(addr=request)
+    def from_reqresp(cls, bus_name, request, response = None):
+        new = cls(bus_name=bus_name,addr=request)
         if response is not None:
             new.data = response
         return new
     def to_reqresp(self):
         return dict(request = self.addr, response = self.data)
     @classmethod
-    def default_transaction(cls):
-        return cls(addr=0,data=0)
+    def default_transaction(cls,bus_name):
+        return cls(bus_name=bus_name,addr=0,data=0)
+    def __eq__(self, other) -> bool:
+        return self.addr == other.addr and self.data == other.data
+    def __str__(self):
+        data = f'0x{self.data:X}' if self.data is not None else None
+        addr = f'0x{self.addr:X}' if self.addr is not None else None
+        return f'BusReadTransaction(bus_name={self.bus_name}, addr={addr}, data={data})'
 
 
 @dataclasses.dataclass
 class BusWriteTransaction:
+    bus_name: str
     data: int = None
     addr: int = None
     strobe: int = None
@@ -41,14 +52,19 @@ class BusWriteTransaction:
     @classmethod
     def from_string(cls, string):
         addr, data, strobe, response = string.split()
-        return cls(int(data,0),int(addr,0),int(strobe,0),int(response,0))
+        return cls(
+            bus_name=None,
+            data=int(data,0),
+            addr=int(addr,0),
+            strobe=int(strobe,0),
+            response=int(response,0))
     @classmethod
-    def from_reqresp(cls, request, response = None):
+    def from_reqresp(cls, bus_name, request, response = None):
         new = cls(
+            bus_name = bus_name,
             data = request['data'],
             addr = request['addr'],
-            strobe = request['strobe'],
-        )
+            strobe = request['strobe'])
         if response is not None:
             new.response = response
         return new
@@ -58,8 +74,17 @@ class BusWriteTransaction:
                 response = self.response
             )
     @classmethod
-    def default_transaction(cls):
-        return cls(addr=0,data=0,strobe=0,response=0)
+    def default_transaction(cls,bus_name):
+        return cls(bus_name=bus_name,addr=0,data=0,strobe=0,response=0)
+    def __eq__(self, other) -> bool:
+        return self.addr == other.addr and self.data == other.data \
+            and self.strobe == other.strobe and self.response == other.response
+    def __str__(self):
+        data = f'0x{self.data:X}' if self.data is not None else None
+        addr = f'0x{self.addr:X}' if self.addr is not None else None
+        strobe = f'0x{self.strobe:X}' if self.strobe is not None else None
+        response = f'0x{self.response:X}' if self.response is not None else None
+        return f'BusReadTransaction(bus_name={self.bus_name}, addr={addr}, data={data}, strobe={strobe}, response={response})'
 
 class BusBfm:
     def __init__(self,
@@ -176,7 +201,10 @@ class BusBfm:
         await RisingEdge(self.clock)
 
 class BusMonitor(Monitor):
-    def __init__(self,name,transaction_type,bfm_recv_req,bfm_recv_resp=None,callback=None,event=None):
+    def __init__(self,name,transaction_type,bfm_recv_req,bfm_recv_resp=None,callback=None,event=None,bus_name=None):
+        self.bus_name = bus_name
+        if self.bus_name is None:
+            self.bus_name = name
         self.name = name
         self.log = SimLog(f"cocotb.{self.name}")
         self.bfm_recv_req = bfm_recv_req
@@ -191,11 +219,13 @@ class BusMonitor(Monitor):
             if self.bfm_recv_resp is not None:
                 resp_transaction = await anext(self.bfm_recv_resp())
             transaction = self.transaction_type.from_reqresp(
+                bus_name = self.bus_name,
                 request = req_transaction,
                 response = resp_transaction
             )
             _type = "req" if self.bfm_recv_resp is None else "full"
-            self.log.debug(f"%s receiving {_type} transaction: %s",self.name,transaction)
+            if _type == "full":
+                self.log.debug(f"Receiving transaction: %s",transaction)
             self._recv(transaction)
 
 class BusSourceDriver(Driver):
@@ -207,12 +237,12 @@ class BusSourceDriver(Driver):
         self.transaction_type = transaction_type
         super().__init__()
         ## reset
-        self.append(self.transaction_type.default_transaction())
+        self.append(self.transaction_type.default_transaction(name))
         self.append('assert_ready')
     async def _driver_send(self, transaction, sync: bool = True):
         if isinstance(transaction, self.transaction_type):
             transaction = self.transaction_type.to_reqresp(transaction)
-            self.log.debug("%s responding read transaction: %s", self.name, transaction)
+            #self.log.debug("%s responding read transaction: %s", self.name, transaction)
             await self.bfm_send_resp(transaction['response'])
         elif transaction == "assert_ready":
             self.log.debug("Assert ready")

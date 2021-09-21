@@ -37,8 +37,10 @@ async def wait_for_nsignal(signal):
 def from_array(data,addr):
     buf = []
     for i in range(4):
-        assert addr+i in data, f"Invalid data address: 0x{addr+i:X}"
-        buf.append(data[addr+i])
+        value = 0
+        if addr+i in data:
+            value = data[addr+i]
+        buf.append(value)
     return int.from_bytes(buf,byteorder='little')
 
 def to_bytes(data):

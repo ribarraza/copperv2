@@ -31,15 +31,17 @@ class Testbench():
         self.pass_fail_address = pass_fail_address
         self.pass_fail_values = pass_fail_values
         ## Process parameters
-        self.instruction_memory = instruction_memory
-        self.data_memory = data_memory
+        self.memory = {**instruction_memory,**data_memory}
+        self.end_i_address = None
         if enable_self_checking:
+            self.end_i_address = max(instruction_memory.keys())
             self.expected_regfile_read = [RegFileReadTransaction.from_string(t) for t in expected_regfile_read]
             self.expected_regfile_write = [RegFileWriteTransaction.from_string(t) for t in expected_regfile_write]
             self.expected_data_read = [BusReadTransaction.from_string(t) for t in expected_data_read]
             self.expected_data_write = [BusWriteTransaction.from_string(t) for t in expected_data_write]
-        self.log.debug(f"Data memory: {self.data_memory}")
-        #self.log.debug(f"Instruction memory: {self.instruction_memory}")
+        #self.log.debug(f"Instruction memory: {instruction_memory}")
+        #self.log.debug(f"Data memory: {data_memory}")
+        #self.log.debug(f"Memory: {self.memory}")
         ## Bus functional models
         self.bus_bfm = BusBfm(
             clock = self.clock,
@@ -82,17 +84,17 @@ class Testbench():
         self.bus_ir_driver = BusSourceDriver("bus_ir",BusReadTransaction,self.bus_bfm.send_ir_resp,self.bus_bfm.drive_ir_ready)
         self.bus_ir_monitor = BusMonitor("bus_ir",BusReadTransaction,self.bus_bfm.recv_ir_req,self.bus_bfm.recv_ir_resp)
         self.bus_ir_req_monitor = BusMonitor("bus_ir_req",BusReadTransaction,self.bus_bfm.recv_ir_req,
-            callback=self.instruction_read_callback)
+            callback=self.memory_callback,bus_name="bus_ir")
         ## Data read
         self.bus_dr_driver = BusSourceDriver("bus_dr",BusReadTransaction,self.bus_bfm.send_dr_resp,self.bus_bfm.drive_dr_ready)
         self.bus_dr_monitor = BusMonitor("bus_dr",BusReadTransaction,self.bus_bfm.recv_dr_req,self.bus_bfm.recv_dr_resp)
         self.bus_dr_req_monitor = BusMonitor("bus_dr_req",BusReadTransaction,self.bus_bfm.recv_dr_req,
-            callback=self.data_read_callback)
+            callback=self.memory_callback,bus_name="bus_dr")
         ## Data write
         self.bus_dw_driver = BusSourceDriver("bus_dw",BusWriteTransaction,self.bus_bfm.send_dw_resp,self.bus_bfm.drive_dw_ready)
         self.bus_dw_monitor = BusMonitor("bus_dw",BusWriteTransaction,self.bus_bfm.recv_dw_req,self.bus_bfm.recv_dw_resp)
         self.bus_dw_req_monitor = BusMonitor("bus_dw_req",BusWriteTransaction,self.bus_bfm.recv_dw_req,
-            callback=self.data_write_callback)
+            callback=self.memory_callback,bus_name="bus_dw")
         ## Regfile
         self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",regfile_bfm)
         self.regfile_read_monitor = RegFileReadMonitor("regfile_read",regfile_bfm)
@@ -103,45 +105,53 @@ class Testbench():
             self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read)
             self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
             self.scoreboard.add_interface(self.bus_dw_monitor, self.expected_data_write)
-    def data_write_callback(self,transaction):
-        mask = f"{transaction.strobe:04b}"
-        for i in range(4):
-            if mask[i]:
-                address = transaction.addr + i
-                if self.pass_fail_address is not None and self.pass_fail_address == address:
-                    if self.pass_fail_values[transaction.data]:
-                        self.log.info("Received test pass from bus")
-                        raise cocotb.result.TestSuccess("Received test pass from bus")
-                    else:
-                        raise cocotb.result.TestFailure("Received test fail from bus")
-                else:
-                    self.data_memory[transaction.addr+i] = to_bytes(transaction.data)[i]
-        self.log.debug(f"Write data memory: {self.data_memory}")
-        driver_transaction = BusWriteTransaction(
-            data = transaction.data,
-            addr = transaction.addr,
-            strobe = transaction.strobe,
-            response = 1,
-        )
-        self.bus_dw_driver.append(driver_transaction)
-    def data_read_callback(self,transaction):
-        driver_transaction = BusReadTransaction(
-            data = from_array(self.data_memory,transaction.addr),
-            addr = transaction.addr,
-        )
-        self.bus_dr_driver.append(driver_transaction)
-        self.log.debug('data_read_callback transaction: %s driver_transaction %s',
-            transaction,driver_transaction)
-    def instruction_read_callback(self, transaction):
-        driver_transaction = "deassert_ready"
-        if transaction.addr < max(self.instruction_memory.keys()):
+    def memory_callback(self, transaction):
+        if isinstance(transaction,BusReadTransaction) and transaction.bus_name == 'bus_ir':
+            driver_transaction = "deassert_ready"
+            if self.end_i_address is None or (self.end_i_address is not None and transaction.addr < self.end_i_address):
+                driver_transaction = BusReadTransaction(
+                    bus_name = transaction.bus_name,
+                    data = from_array(self.memory,transaction.addr),
+                    addr = transaction.addr)
+            self.bus_ir_driver.append(driver_transaction)
+            #self.log.debug('instruction_read_callback transaction: %s driver_transaction %s',
+            #    transaction,driver_transaction)
+        elif isinstance(transaction,BusReadTransaction) and transaction.bus_name == 'bus_dr':
             driver_transaction = BusReadTransaction(
-                data = from_array(self.instruction_memory,transaction.addr),
+                bus_name = transaction.bus_name,
+                data = from_array(self.memory,transaction.addr),
                 addr = transaction.addr,
             )
-        self.bus_ir_driver.append(driver_transaction)
-        self.log.debug('instruction_read_callback transaction: %s driver_transaction %s',
-            transaction,driver_transaction)
+            self.bus_dr_driver.append(driver_transaction)
+            #self.log.debug('data_read_callback transaction: %s driver_transaction %s',
+            #    transaction,driver_transaction)
+        elif isinstance(transaction,BusWriteTransaction):
+            if self.pass_fail_address is not None and self.pass_fail_address == transaction.addr:
+                if self.pass_fail_values[transaction.data]:
+                    self.log.info("Received test pass from bus")
+                    raise cocotb.result.TestSuccess("Received test pass from bus")
+                else:
+                    raise cocotb.result.TestFailure("Received test fail from bus")
+            else:
+                mask = f"{transaction.strobe:04b}"
+                #self.log.debug('write start: %X mask: %s',from_array(self.memory,transaction.addr),mask)
+                for i in range(4):
+                    if int(mask[3-i]):
+                        #self.log.debug('writing %X -> %X',transaction.addr+i,to_bytes(transaction.data)[i])
+                        self.memory[transaction.addr+i] = to_bytes(transaction.data)[i]
+                #self.log.debug('write finished: %X',from_array(self.memory,transaction.addr))
+            driver_transaction = BusWriteTransaction(
+                bus_name = transaction.bus_name,
+                data = transaction.data,
+                addr = transaction.addr,
+                strobe = transaction.strobe,
+                response = 1,
+            )
+            self.bus_dw_driver.append(driver_transaction)
+            #self.log.debug('data_write_callback transaction: %s driver_transaction %s',
+            #    transaction,driver_transaction)
+        else:
+            raise ValueError(f"Unsupported transaction type: {transaction}")
     @cocotb.coroutine
     async def finish(self):
         last_pending = ""

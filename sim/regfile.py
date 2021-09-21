@@ -114,7 +114,7 @@ class RegFileWriteMonitor(Monitor):
                 reg = received['addr'],
                 data = received['data'],
             )
-            self.log.debug("regfile write: %s", transaction)
+            self.log.debug("Regfile write: %s", transaction)
             self._recv(transaction)
 
 class RegFileReadMonitor(Monitor):
@@ -144,5 +144,5 @@ class RegFileReadMonitor(Monitor):
                     reg1 = int(received['addr2']),
                     data1 = int(received['data2']),
                 )
-            self.log.debug('regfile read: %s',transaction)
+            self.log.debug('Regfile read: %s',transaction)
             self._recv(transaction)
