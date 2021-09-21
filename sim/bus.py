@@ -13,8 +13,8 @@ from cocotb_utils import wait_for_signal, anext
 
 @dataclasses.dataclass
 class BusReadTransaction:
-    data: int = 0
-    addr: int = 0
+    data: int = None
+    addr: int = None
     @classmethod
     def from_string(cls, string):
         addr, data = string.split()
@@ -27,13 +27,17 @@ class BusReadTransaction:
         return new
     def to_reqresp(self):
         return dict(request = self.addr, response = self.data)
+    @classmethod
+    def default_transaction(cls):
+        return cls(addr=0,data=0)
+
 
 @dataclasses.dataclass
 class BusWriteTransaction:
-    data: int = 0
-    addr: int = 0
-    strobe: int = 0
-    response: int = 0
+    data: int = None
+    addr: int = None
+    strobe: int = None
+    response: int = None
     @classmethod
     def from_string(cls, string):
         addr, data, strobe, response = string.split()
@@ -53,6 +57,9 @@ class BusWriteTransaction:
                 request = dict(data=self.data,addr=self.addr,strobe=self.strobe),
                 response = self.response
             )
+    @classmethod
+    def default_transaction(cls):
+        return cls(addr=0,data=0,strobe=0,response=0)
 
 class BusBfm:
     def __init__(self,
@@ -188,7 +195,7 @@ class BusMonitor(Monitor):
                 response = resp_transaction
             )
             _type = "req" if self.bfm_recv_resp is None else "full"
-            self.log.debug(f"Receiving {_type} transaction: %s", transaction)
+            self.log.debug(f"%s receiving {_type} transaction: %s",self.name,transaction)
             self._recv(transaction)
 
 class BusSourceDriver(Driver):
@@ -199,13 +206,13 @@ class BusSourceDriver(Driver):
         self.bfm_drive_ready = bfm_drive_ready
         self.transaction_type = transaction_type
         super().__init__()
-        self.append(self.transaction_type())
+        ## reset
+        self.append(self.transaction_type.default_transaction())
         self.append('assert_ready')
     async def _driver_send(self, transaction, sync: bool = True):
-        self.log.debug("bus driver send: %s",transaction)
         if isinstance(transaction, self.transaction_type):
             transaction = self.transaction_type.to_reqresp(transaction)
-            self.log.debug("Responding read transaction: %s", transaction)
+            self.log.debug("%s responding read transaction: %s", self.name, transaction)
             await self.bfm_send_resp(transaction['response'])
         elif transaction == "assert_ready":
             self.log.debug("Assert ready")

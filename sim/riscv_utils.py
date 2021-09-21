@@ -11,25 +11,6 @@ from cocotb_utils import to_bytes
 sim_dir = Path(__file__).resolve().parent
 linker_script = sim_dir/'tests/linker.ld'
 
-def compile_test(instructions):
-    log = SimLog("cocotb.copperv2.compile_test")
-    test_s = Path(get_test_name()).with_suffix('.S')
-    test_elf = Path(get_test_name()).with_suffix('.elf')
-    test_s.write_text('\n'.join(crt0 + instructions) + '\n')
-    cmd = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -Wl,-T,{linker_script},-Bstatic -nostartfiles -ffreestanding -g {test_s} -o {test_elf}"
-    run_gcc(log, cmd)
-    with test_elf.open('rb') as file:
-        elffile = ELFFile(file)
-        elf = {}
-        for spec in ['.text']:
-            section = elffile.get_section_by_name(spec)
-            elf[spec] = dict(
-                addr = section['sh_addr'],
-                data = section.data(),
-            )
-    log.debug(f"elf: {elf}")
-    return elf
-
 def run_gcc(log, cmd):
     log.debug(f"gcc cmd: {cmd}")
     r = subprocess.run(cmd,shell=True,encoding='utf-8',capture_output=True)
@@ -38,6 +19,41 @@ def run_gcc(log, cmd):
         log.error(f"gcc stderr: {r.stderr}")
         raise ChildProcessError(f"Failed Riscv compilation: {cmd}")
     return r
+
+def read_elf(log,test_elf,sections=['.text']):
+    with test_elf.open('rb') as file:
+        elffile = ELFFile(file)
+        elf = {}
+        for spec in sections:
+            section = elffile.get_section_by_name(spec)
+            log.debug('read_elf %s spec: %s',test_elf,spec)
+            if section is not None:
+                elf[spec] = dict(
+                    addr = section['sh_addr'],
+                    data = section.data(),
+                )
+    #log.debug(f"elf: {elf}")
+    return elf
+
+def elf_to_memory(elf):
+    instruction_memory = {}
+    for elf_section in elf.values():
+        section_start = elf_section['addr']
+        section_data = elf_section['data']
+        section_size = len(section_data)
+        for addr in range(section_size):
+            instruction_memory[section_start+addr] = section_data[addr]
+    return instruction_memory
+
+def compile_test(instructions):
+    log = SimLog("cocotb.copperv2.compile_test")
+    test_s = Path(get_test_name()).with_suffix('.S')
+    test_elf = Path(get_test_name()).with_suffix('.elf')
+    test_s.write_text('\n'.join(crt0 + instructions) + '\n')
+    cmd = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -Wl,-T,{linker_script},-Bstatic -nostartfiles -ffreestanding -g {test_s} -o {test_elf}"
+    run_gcc(log,cmd)
+    elf = read_elf(log,test_elf)
+    return elf
 
 def compile_riscv_test(asm_path):
     log = SimLog("cocotb.copperv2.compile_riscv_test")
@@ -53,17 +69,13 @@ def compile_riscv_test(asm_path):
     run_gcc(log,cmd_crt0)
     run_gcc(log,cmd_test)
     run_gcc(log,cmd_link)
-    with test_elf.open('rb') as file:
-        elffile = ELFFile(file)
-        elf = {}
-        for spec in ['.text']:
-            section = elffile.get_section_by_name(spec)
-            elf[spec] = dict(
-                addr = section['sh_addr'],
-                data = section.data(),
-            )
-    log.debug(f"elf: {elf}")
-    return elf
+    i_elf = read_elf(log,test_elf,
+        sections=['.init','.text'])
+    d_elf = read_elf(log,test_elf,
+        sections=['.data'])
+    instruction_memory = elf_to_memory(i_elf)
+    data_memory = elf_to_memory(d_elf)
+    return instruction_memory,data_memory
 
 crt0 = [
     ".global _start",
@@ -106,13 +118,8 @@ reg_abi_map = {
 }
 
 def compile_instructions(instructions):
-    instruction_memory = {}
     elf = compile_test(instructions)
-    section_start = elf['.text']['addr']
-    section_data = elf['.text']['data']
-    section_size = len(section_data)
-    for addr in range(section_size):
-        instruction_memory[section_start+addr] = section_data[addr]
+    instruction_memory = elf_to_memory(elf)
     return instruction_memory
 
 def parse_data_memory(params_data_memory):

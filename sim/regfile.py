@@ -7,23 +7,28 @@ from cocotb.log import SimLog
 
 from cocotb_utils import anext
 from riscv_utils import reg_abi_map
+reg_abi_map_inv = {v:k for k,v in reg_abi_map.items()}
 
 @dataclasses.dataclass
 class RegFileWriteTransaction:
-    reg: int = 0
-    data: int = 0
+    reg: int = None
+    data: int = None
     @classmethod
     def from_string(cls, string):
         tokens = string.split()
         reg, value = tokens
         return cls(reg_abi_map[reg],int(value,0))
+    def __str__(self):
+        reg = reg_abi_map_inv[self.reg] if self.reg is not None else None
+        data = f'0x{self.data:X}' if self.data is not None else None
+        return f'RegFileWriteTransaction(reg={reg}, data={data})'
 
 @dataclasses.dataclass
 class RegFileReadTransaction:
-    reg1: int = 0
-    data1: int = 0
-    reg2: int = 0
-    data2: int = 0
+    reg1: int = None
+    data1: int = None
+    reg2: int = None
+    data2: int = None
     @classmethod
     def from_string(cls, string):
         tokens = string.split()
@@ -36,6 +41,12 @@ class RegFileReadTransaction:
                     ,reg_abi_map[reg2],int(value2,0))
         else:
             ValueError("Invalid transaction")
+    def __str__(self):
+        reg1 = reg_abi_map_inv[self.reg1] if self.reg1 is not None else None
+        reg2 = reg_abi_map_inv[self.reg2] if self.reg2 is not None else None
+        data1 = f'0x{self.data1:X}' if self.data1 is not None else None
+        data2 = f'0x{self.data2:X}' if self.data2 is not None else None
+        return f'RegFileReadTransaction(reg1={reg1}, data1={data1}, reg2={reg2}, data1={data2})'
                 
 class RegFileBfm:
     def __init__(self,
@@ -103,7 +114,7 @@ class RegFileWriteMonitor(Monitor):
                 reg = received['addr'],
                 data = received['data'],
             )
-            self.log.debug("Receiving register file write transaction: %s", transaction)
+            self.log.debug("regfile write: %s", transaction)
             self._recv(transaction)
 
 class RegFileReadMonitor(Monitor):
@@ -133,5 +144,5 @@ class RegFileReadMonitor(Monitor):
                     reg1 = int(received['addr2']),
                     data1 = int(received['data2']),
                 )
-            self.log.debug("Receiving register file read transaction: %s", transaction)
+            self.log.debug('regfile read: %s',transaction)
             self._recv(transaction)

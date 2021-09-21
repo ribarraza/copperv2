@@ -1,4 +1,4 @@
-DUT_COPPERV1 ?= 0
+DUT_COPPERV1 ?= 1
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 WAVES ?= 1

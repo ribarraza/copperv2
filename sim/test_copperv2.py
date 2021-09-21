@@ -5,7 +5,7 @@ import toml
 from pathlib import Path
 
 import cocotb
-from cocotb.triggers import with_timeout
+from cocotb.triggers import with_timeout, Timer
 from cocotb.log import SimLog
 from cocotb.regression import TestFactory
 
@@ -33,7 +33,11 @@ async def unit_test(dut, params):
 
     instruction_memory = compile_instructions(params.instructions)
     data_memory = parse_data_memory(params.data_memory)
-    tb = Testbench(dut, params,
+    tb = Testbench(dut,
+        expected_data_read=params.expected_data_read,
+        expected_data_write=params.expected_data_write,
+        expected_regfile_read=params.expected_regfile_read,
+        expected_regfile_write=params.expected_regfile_write,
         instruction_memory=instruction_memory,
         data_memory=data_memory)
     tb.bus_bfm.start_clock()
@@ -51,14 +55,25 @@ async def riscv_test(dut, asm_path):
     iverilog_dump = get_top_module("iverilog_dump")
     iverilog_dump.test_name <= verilog_string(test_name)
 
+    T_ADDR=0x80000000
+    O_ADDR=0x80000004
+    TC_ADDR=0x80000008
+    T_PASS=0x01000001
+    T_FAIL=0x02000001
+    T_UNIT_PASS=0x03000001
+
     instruction_memory, data_memory = compile_riscv_test(asm_path)
     tb = Testbench(dut, asm_path,
         instruction_memory=instruction_memory,
-        data_memory=data_memory)
+        data_memory=data_memory,
+        enable_self_checking=False,
+        pass_fail_address = T_ADDR,
+        pass_fail_values = {T_FAIL:False,T_UNIT_PASS:True})
+
     tb.bus_bfm.start_clock()
     await tb.bus_bfm.do_reset()
-    await with_timeout(tb.finish(), 10000, 'ns')
-
+    await Timer(1000, 'ms')
+    raise cocotb.result.SimTimeoutError()
     dut._log.info(f"Test {test_name} finished")
 
 @dataclasses.dataclass
@@ -84,6 +99,6 @@ utf.generate_tests()
 
 rvtf = TestFactory(test_function=riscv_test)
 rv_asm_paths = list(sim_dir.glob('tests/isa/rv32ui/*.S'))
-rv_asm_paths = [rv_asm_paths[0]]
+#rv_asm_paths = [rv_asm_paths[0]]
 rvtf.add_option('asm_path',rv_asm_paths)
-#rvtf.generate_tests()
+rvtf.generate_tests()

@@ -8,29 +8,38 @@ from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransact
 from cocotb_utils import from_array, to_bytes
 
 class Testbench():
-    def __init__(self, dut, params, 
+    def __init__(self, dut,
+            expected_regfile_read = None,
+            expected_regfile_write = None,
+            expected_data_read = None,
+            expected_data_write = None,
             instruction_memory = None, 
             data_memory = None, 
-            enable_self_checking = True
+            enable_self_checking = True,
+            pass_fail_address = None,
+            pass_fail_values = None
         ):
         self.log = SimLog("cocotb.Testbench")
         self.dut = dut
         self.clock = self.dut.clk
         self.reset = self.dut.rst
-        core = self.dut.core
         if cocotb.plusargs.get('dut_copperv1',False):
             core = self.dut
+        else:
+            core = self.dut.core
         self.reset.setimmediatevalue(0)
+        self.pass_fail_address = pass_fail_address
+        self.pass_fail_values = pass_fail_values
         ## Process parameters
         self.instruction_memory = instruction_memory
         self.data_memory = data_memory
         if enable_self_checking:
-            self.expected_regfile_read = [RegFileReadTransaction.from_string(t) for t in params.expected_regfile_read]
-            self.expected_regfile_write = [RegFileWriteTransaction.from_string(t) for t in params.expected_regfile_write]
-            self.expected_data_read = [BusReadTransaction.from_string(t) for t in params.expected_data_read]
-            self.expected_data_write = [BusWriteTransaction.from_string(t) for t in params.expected_data_write]
+            self.expected_regfile_read = [RegFileReadTransaction.from_string(t) for t in expected_regfile_read]
+            self.expected_regfile_write = [RegFileWriteTransaction.from_string(t) for t in expected_regfile_write]
+            self.expected_data_read = [BusReadTransaction.from_string(t) for t in expected_data_read]
+            self.expected_data_write = [BusWriteTransaction.from_string(t) for t in expected_data_write]
         self.log.debug(f"Data memory: {self.data_memory}")
-        self.log.debug(f"Instruction memory: {self.instruction_memory}")
+        #self.log.debug(f"Instruction memory: {self.instruction_memory}")
         ## Bus functional models
         self.bus_bfm = BusBfm(
             clock = self.clock,
@@ -56,20 +65,19 @@ class Testbench():
             dw_resp_valid = self.dut.dw_resp_valid,
             dw_resp = self.dut.dw_resp,
         )
-        if enable_self_checking:
-            regfile_bfm = RegFileBfm(
-                clock = self.clock,
-                reset = self.reset,
-                rd_en = core.regfile.rd_en,
-                rd_addr = core.regfile.rd,
-                rd_data = core.regfile.rd_din,
-                rs1_en = core.regfile.rs1_en,
-                rs1_addr = core.regfile.rs1,
-                rs1_data = core.regfile.rs1_dout,
-                rs2_en = core.regfile.rs2_en,
-                rs2_addr = core.regfile.rs2,
-                rs2_data = core.regfile.rs2_dout,
-            )
+        regfile_bfm = RegFileBfm(
+            clock = self.clock,
+            reset = self.reset,
+            rd_en = core.regfile.rd_en,
+            rd_addr = core.regfile.rd,
+            rd_data = core.regfile.rd_din,
+            rs1_en = core.regfile.rs1_en,
+            rs1_addr = core.regfile.rs1,
+            rs1_data = core.regfile.rs1_dout,
+            rs2_en = core.regfile.rs2_en,
+            rs2_addr = core.regfile.rs2,
+            rs2_data = core.regfile.rs2_dout,
+        )
         ## Instruction read
         self.bus_ir_driver = BusSourceDriver("bus_ir",BusReadTransaction,self.bus_bfm.send_ir_resp,self.bus_bfm.drive_ir_ready)
         self.bus_ir_monitor = BusMonitor("bus_ir",BusReadTransaction,self.bus_bfm.recv_ir_req,self.bus_bfm.recv_ir_resp)
@@ -85,10 +93,10 @@ class Testbench():
         self.bus_dw_monitor = BusMonitor("bus_dw",BusWriteTransaction,self.bus_bfm.recv_dw_req,self.bus_bfm.recv_dw_resp)
         self.bus_dw_req_monitor = BusMonitor("bus_dw_req",BusWriteTransaction,self.bus_bfm.recv_dw_req,
             callback=self.data_write_callback)
+        ## Regfile
+        self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",regfile_bfm)
+        self.regfile_read_monitor = RegFileReadMonitor("regfile_read",regfile_bfm)
         if enable_self_checking:
-            ## Regfile
-            self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",regfile_bfm)
-            self.regfile_read_monitor = RegFileReadMonitor("regfile_read",regfile_bfm)
             ## Self checking
             self.scoreboard = Scoreboard(dut)
             self.scoreboard.add_interface(self.regfile_write_monitor, self.expected_regfile_write)
@@ -99,7 +107,15 @@ class Testbench():
         mask = f"{transaction.strobe:04b}"
         for i in range(4):
             if mask[i]:
-                self.data_memory[transaction.addr+i] = to_bytes(transaction.data)[i]
+                address = transaction.addr + i
+                if self.pass_fail_address is not None and self.pass_fail_address == address:
+                    if self.pass_fail_values[transaction.data]:
+                        self.log.info("Received test pass from bus")
+                        raise cocotb.result.TestSuccess("Received test pass from bus")
+                    else:
+                        raise cocotb.result.TestFailure("Received test fail from bus")
+                else:
+                    self.data_memory[transaction.addr+i] = to_bytes(transaction.data)[i]
         self.log.debug(f"Write data memory: {self.data_memory}")
         driver_transaction = BusWriteTransaction(
             data = transaction.data,
@@ -114,6 +130,8 @@ class Testbench():
             addr = transaction.addr,
         )
         self.bus_dr_driver.append(driver_transaction)
+        self.log.debug('data_read_callback transaction: %s driver_transaction %s',
+            transaction,driver_transaction)
     def instruction_read_callback(self, transaction):
         driver_transaction = "deassert_ready"
         if transaction.addr < max(self.instruction_memory.keys()):
@@ -122,6 +140,8 @@ class Testbench():
                 addr = transaction.addr,
             )
         self.bus_ir_driver.append(driver_transaction)
+        self.log.debug('instruction_read_callback transaction: %s driver_transaction %s',
+            transaction,driver_transaction)
     @cocotb.coroutine
     async def finish(self):
         last_pending = ""

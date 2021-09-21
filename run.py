@@ -70,6 +70,8 @@ parser.add_argument('-cocotb_reduced', action='store_true',
                     help='Launch cocotb in reduced log mode')
 parser.add_argument('-cocotb_debug', action='store_true',
                     help='Launch cocotb in debug log mode')
+parser.add_argument('-cocotb_testcase',
+                    help='Name of the test functions to run (single or comma-separated list)')
 parser.add_argument('-lint', action='store_true',
                     help='Lint Python')
 
@@ -89,6 +91,9 @@ if args.chisel:
 if args.lint:
     run("flake8 sim",default_run_opts,'lint')
     sys.exit(0)
+
+if args.cocotb_testcase:
+    default_run_opts['env']["TESTCASE"] = args.cocotb_testcase
 
 if args.cocotb_debug:
     default_run_opts['env']["DEBUG_TEST"] = "1"

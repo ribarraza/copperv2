@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import io
 from pathlib import Path
 import re
 import argparse
@@ -11,31 +12,59 @@ from tabulate import tabulate
 
 script_name = Path(sys.argv[0]).name
 
-class Run:
-    def __init__(self,caller):
-        self.caller = caller
-    def __call__(self,cmd):
-        print(f'{self.caller}:',cmd)
-        return sp.run(cmd,capture_output=True,encoding="utf-8",shell=True,check=True).stdout
-
 def generated(file):
     print(f"Generated: {file.resolve()}")
 
-def generate_dissassembly_file(diss,elf_file,objdump):
-    diss = Path(diss)
-    def j_opt(sections):
-        return ' '.join([f'-j {s}' for s in sections])
+class Toolchain:
+    def __init__(self,toolchain_path):
+        self.path = str(toolchain_path)
+        self.readelf_cmd = self.path+'readelf'
+        self.objcopy_cmd = self.path+'objcopy'
+        self.objdump_cmd = self.path+'objdump'
+    def run(self,cmd):
+        print(cmd)
+        return sp.run(cmd,capture_output=True,encoding="utf-8",shell=True,check=True).stdout
+    def read_elf(self,elf_file):
+        return self.run(self.readelf_cmd+f' -S {elf_file}')
+    def write_hex(self,elf_file,output_path,format='verilog'):
+        return self.run(f'{self.objcopy_cmd} -O {format} {elf_file} {output_path}')
+    def read_elf_dump_instruction_sections(self,elf_file,sections):
+        if isinstance(sections,str):
+            sections = [sections]
+        j_opt = ' '.join([f'-j {s}' for s in sections])
+        return self.run(f'{self.objdump_cmd} -S -Mno-aliases -r {elf_file} {j_opt}')
+    def read_elf_sections_header(self,elf_file):
+        return self.run(f'{self.objdump_cmd} -h {elf_file}')
+    def read_elf_dump_data_sections(self,elf_file,sections):
+        j_opt = ' '.join([f'-j {s}' for s in sections])
+        return self.run(f'{self.objdump_cmd} -s {elf_file} {j_opt}')
+
+toolchain = Toolchain('riscv64-unknown-elf-')
+
+def _generate_dissassembly_file(elf_file):
     inst_sections = ['.init', '.text']
-    run = Run('generate_dissassembly_file')
-    r = run(f'{objdump} -S -Mno-aliases -r {elf_file} {j_opt(inst_sections)}')
-    all_sections = run(f'{objdump} -h {elf_file}').splitlines()
+    r = toolchain.read_elf_dump_instruction_sections(elf_file,inst_sections)
+    all_sections = toolchain.read_elf_sections_header(elf_file).splitlines()
     start = next((i for i,line in enumerate(all_sections) if line.startswith('Sections:')),None)
     all_sections = [line.split()[1] for line in all_sections[start:] if re.search('^\s+\d',line)]
     non_inst_sections = [i for i in all_sections if not i in inst_sections]
-    r += run(f'{objdump} -s {elf_file} {j_opt(non_inst_sections)}')
+    r += toolchain.read_elf_dump_data_sections(elf_file,non_inst_sections)
+    return r
+
+def generate_dissassembly_file(diss,elf_file):
+    diss = Path(diss)
+    r = _generate_dissassembly_file(elf_file)
     diss.write_text(r)
     generated(diss)
     return diss
+
+def generate_debug_file(output,elf_file):
+    elf_sections = toolchain.read_elf(elf_file)
+    output = Path(output)
+    temp = _generate_dissassembly_file(elf_file)
+    output.write_text(elf_sections + '\n' + temp)
+    generated(output)
+    return output
 
 def get_printer(name, width, entries):
     printer_template = """
@@ -196,12 +225,11 @@ def parse_readelf(text):
             table.append(m.groups())
     return table
 
-def generate_hex_file(hex_file: Path,elf_file: Path,objcopy,readelf,v_hex_file):
-    run = Run('generate_hex_file')
+def generate_hex_file(hex_file: Path,elf_file: Path,v_hex_file):
     if elf_file is not None:
         v_hex_file = hex_file.with_suffix('.ocpy_v_hex')
-        run(f'{objcopy} -O verilog {elf_file} {v_hex_file}')
-        readelf_output = run(f'{readelf} -S {elf_file}')
+        toolchain.write_hex(elf_file,v_hex_file,format='verilog')
+        readelf_output = toolchain.read_elf(elf_file)
         section_table = parse_readelf(readelf_output)
         init_zeros = [{'name':line[1],'addr':int(line[3],16),'size':int(line[5],16)} for line in section_table if 'NOBITS' in line]
     else:
@@ -254,7 +282,6 @@ if __name__=='__main__':
     parser_diss = subparsers.add_parser('dissassemble')
     parser_diss.add_argument('elf_file',**elf_params)
     parser_diss.add_argument('-o',**out_params,dest='diss')
-    parser_diss.add_argument('-objdump',metavar='OBJDUMP_PATH',type=Path,help='Path to objdump',default='riscv64-unknown-elf-objdump')
     parser_diss.set_defaults(func=generate_dissassembly_file)
     # Hex file
     parser_hex = subparsers.add_parser('hex')
@@ -262,9 +289,12 @@ if __name__=='__main__':
     in_group.add_argument('-elf_file',**elf_params)
     in_group.add_argument('-v_hex_file',metavar='V_HEX_FILE',type=Path,help='Verilog hex file',dest='v_hex_file')
     parser_hex.add_argument('-o',**out_params,dest='hex_file')
-    parser_hex.add_argument('-objcopy',metavar='OBJCOPY_PATH',type=Path,help='Path to objcopy (required)',required=True)
-    parser_hex.add_argument('-readelf',metavar='READELF_PATH',type=Path,help='Path to readelf (required)',required=True)
     parser_hex.set_defaults(func=generate_hex_file)
+     # Debug file
+    parser_debug = subparsers.add_parser('debug')
+    parser_debug.add_argument('elf_file',**elf_params)
+    parser_debug.add_argument('-o',**out_params,dest='output')
+    parser_debug.set_defaults(func=generate_debug_file)
     ## do work
     args = parser.parse_args()
     if len(vars(args)) == 0:
