@@ -9,7 +9,7 @@ from bus import BusReadTransaction
 from cocotb_utils import to_bytes
 
 sim_dir = Path(__file__).resolve().parent
-linker_script = sim_dir/'tests/linker.ld'
+linker_script = sim_dir/'tests/common/linker.ld'
 
 def run_gcc(log, cmd):
     log.debug(f"gcc cmd: {cmd}")
@@ -58,14 +58,15 @@ def compile_test(instructions):
 def compile_riscv_test(asm_path):
     log = SimLog("cocotb.copperv2.compile_riscv_test")
     test_s = asm_path
-    linker_script = sim_dir/'tests/linker.ld'
-    crt0_s = sim_dir/'tests/crt0.S'
+    crt0_s = sim_dir/'tests/common/crt0.S'
     crt0_obj = Path(crt0_s.name).with_suffix('.o')
     test_obj = Path(test_s.name).with_suffix('.o')
     test_elf = Path(test_s.name).with_suffix('.elf')
-    cmd_crt0 = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -I{sim_dir/'tests/isa'} -I{sim_dir/'tests/isa/macros/scalar'} -g -DENTRY_POINT={test_s.stem} -c {crt0_s} -o {crt0_obj}"
-    cmd_test = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -I{sim_dir/'tests/isa'} -I{sim_dir/'tests/isa/macros/scalar'} -g -DTEST_NAME={test_s.stem} -c {test_s} -o {test_obj}"
-    cmd_link = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -I{sim_dir/'tests/isa'} -I{sim_dir/'tests/isa/macros/scalar'} -Wl,-T,{linker_script},-Bstatic -nostartfiles -ffreestanding -g {crt0_obj} {test_obj} -o {test_elf}" 
+    common_dir = sim_dir/'tests/common'
+    macros_dir = sim_dir/'tests/isa/macros/scalar'
+    cmd_crt0 = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -I{common_dir} -I{macros_dir} -g -DENTRY_POINT={test_s.stem} -c {crt0_s} -o {crt0_obj}"
+    cmd_test = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -I{common_dir} -I{macros_dir} -g -DTEST_NAME={test_s.stem} -c {test_s} -o {test_obj}"
+    cmd_link = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -I{common_dir} -I{macros_dir} -Wl,-T,{linker_script},-Bstatic -nostartfiles -ffreestanding -g {crt0_obj} {test_obj} -o {test_elf}" 
     run_gcc(log,cmd_crt0)
     run_gcc(log,cmd_test)
     run_gcc(log,cmd_link)
