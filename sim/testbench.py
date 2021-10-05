@@ -2,13 +2,17 @@ import cocotb
 from cocotb.log import SimLog
 from cocotb_bus.scoreboard import Scoreboard
 from cocotb.triggers import RisingEdge, ClockCycles
+from pathlib import Path
+from tabulate import tabulate
 
 from bus import BusReadTransaction, BusWriteTransaction, BusBfm, BusMonitor, BusSourceDriver
 from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransaction, RegFileWriteTransaction, RegFileBfm
 from cocotb_utils import from_array, to_bytes
+from riscv_utils import StackMonitor
 
 class Testbench():
     def __init__(self, dut,
+            test_name,
             expected_regfile_read = None,
             expected_regfile_write = None,
             expected_data_read = None,
@@ -17,9 +21,12 @@ class Testbench():
             data_memory = None, 
             enable_self_checking = True,
             pass_fail_address = None,
-            pass_fail_values = None
+            pass_fail_values = None,
+            output_address = None,
+            timer_address = None,
         ):
-        self.log = SimLog("cocotb.Testbench")
+        self.log = SimLog('cocotb.'+__name__+'.'+self.__class__.__name__)
+        self.test_name = test_name
         self.dut = dut
         self.clock = self.dut.clk
         self.reset = self.dut.rst
@@ -30,8 +37,19 @@ class Testbench():
         self.reset.setimmediatevalue(0)
         self.pass_fail_address = pass_fail_address
         self.pass_fail_values = pass_fail_values
+        self.output_address = output_address
+        self.fake_uart = []
+        self.timer_counter = 0
+        self.timer_address = timer_address
+        if self.timer_address is not None:
+            cocotb.fork(self.timer())
         ## Process parameters
         self.memory = {**instruction_memory,**data_memory}
+        if 'debug_test' in cocotb.plusargs:
+            csv_path = Path(test_name+'_memory.csv')
+            self.log.debug(f"Dumping initial memory content to {csv_path.resolve()}")
+            memory = [(f'0x{k:X}',f'0x{v:X}') for k,v in self.memory.items()]
+            csv_path.write_text(tabulate(memory, ['address','value'], tablefmt="plain"))
         self.end_i_address = None
         if enable_self_checking:
             self.end_i_address = max(instruction_memory.keys())
@@ -98,6 +116,8 @@ class Testbench():
         ## Regfile
         self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",regfile_bfm)
         self.regfile_read_monitor = RegFileReadMonitor("regfile_read",regfile_bfm)
+        ## Stack Monitor
+        #StackMonitor(self.regfile_write_monitor)
         if enable_self_checking:
             ## Self checking
             self.scoreboard = Scoreboard(dut)
@@ -105,6 +125,10 @@ class Testbench():
             self.scoreboard.add_interface(self.regfile_read_monitor, self.expected_regfile_read)
             self.scoreboard.add_interface(self.bus_dr_monitor, self.expected_data_read)
             self.scoreboard.add_interface(self.bus_dw_monitor, self.expected_data_write)
+    async def timer(self):
+        while True:
+            await RisingEdge(self.clock)
+            self.timer_counter += 1
     def memory_callback(self, transaction):
         if isinstance(transaction,BusReadTransaction) and transaction.bus_name == 'bus_ir':
             driver_transaction = "deassert_ready"
@@ -119,27 +143,14 @@ class Testbench():
         elif isinstance(transaction,BusReadTransaction) and transaction.bus_name == 'bus_dr':
             driver_transaction = BusReadTransaction(
                 bus_name = transaction.bus_name,
-                data = from_array(self.memory,transaction.addr),
+                data = self.handle_data_read(transaction),
                 addr = transaction.addr,
             )
             self.bus_dr_driver.append(driver_transaction)
             #self.log.debug('data_read_callback transaction: %s driver_transaction %s',
             #    transaction,driver_transaction)
         elif isinstance(transaction,BusWriteTransaction):
-            if self.pass_fail_address is not None and self.pass_fail_address == transaction.addr:
-                if self.pass_fail_values[transaction.data]:
-                    self.log.info("Received test pass from bus")
-                    raise cocotb.result.TestSuccess("Received test pass from bus")
-                else:
-                    raise cocotb.result.TestFailure("Received test fail from bus")
-            else:
-                mask = f"{transaction.strobe:04b}"
-                #self.log.debug('write start: %X mask: %s',from_array(self.memory,transaction.addr),mask)
-                for i in range(4):
-                    if int(mask[3-i]):
-                        #self.log.debug('writing %X -> %X',transaction.addr+i,to_bytes(transaction.data)[i])
-                        self.memory[transaction.addr+i] = to_bytes(transaction.data)[i]
-                #self.log.debug('write finished: %X',from_array(self.memory,transaction.addr))
+            self.handle_data_write(transaction)
             driver_transaction = BusWriteTransaction(
                 bus_name = transaction.bus_name,
                 data = transaction.data,
@@ -152,6 +163,34 @@ class Testbench():
             #    transaction,driver_transaction)
         else:
             raise ValueError(f"Unsupported transaction type: {transaction}")
+    def handle_data_write(self,transaction):
+        if self.pass_fail_address is not None and self.pass_fail_address == transaction.addr:
+            if len(self.fake_uart) > 0:
+                self.log.info("Fake UART output:\n%s",''.join(self.fake_uart))
+            if self.pass_fail_values[transaction.data]:
+                self.log.info("Received test pass from bus")
+                raise cocotb.result.TestSuccess("Received test pass from bus")
+            else:
+                raise cocotb.result.TestFailure("Received test fail from bus")
+        elif self.output_address is not None and self.output_address == transaction.addr:
+            recv = chr(transaction.data)
+            self.fake_uart.append(recv)
+            self.log.info('Fake UART received: %s',repr(recv))
+        else:
+            mask = f"{transaction.strobe:04b}"
+            #self.log.debug('write start: %X mask: %s',from_array(self.memory,transaction.addr),mask)
+            for i in range(4):
+                if int(mask[3-i]):
+                    #self.log.debug('writing %X -> %X',transaction.addr+i,to_bytes(transaction.data)[i])
+                    self.memory[transaction.addr+i] = to_bytes(transaction.data)[i]
+            #self.log.debug('write finished: %X',from_array(self.memory,transaction.addr))
+    def handle_data_read(self,transaction):
+        value = None
+        if self.timer_address is not None and self.timer_address == transaction.addr:
+            value = self.timer_counter
+        else:
+            value = from_array(self.memory,transaction.addr)
+        return value
     @cocotb.coroutine
     async def finish(self):
         last_pending = ""

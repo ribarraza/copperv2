@@ -1,8 +1,7 @@
 ### Project Specific stuff
-scripts/tools/build.sh
-test_run_dir/*
+*.debug
+*.E
 work/
-etc/
 __pycache__/
 .bloop/
 .metals/

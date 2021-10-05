@@ -6,22 +6,25 @@ from cocotb_bus.monitors import Monitor
 from cocotb.log import SimLog
 
 from cocotb_utils import anext
-from riscv_utils import reg_abi_map
-reg_abi_map_inv = {v:k for k,v in reg_abi_map.items()}
+from riscv_constants import abi_reg_map, reg_abi_map
 
 @dataclasses.dataclass
 class RegFileWriteTransaction:
     reg: int = None
     data: int = None
+    @property
+    def reg_name(self):
+        if self.reg is None:
+            return None
+        return reg_abi_map[self.reg] 
     @classmethod
     def from_string(cls, string):
         tokens = string.split()
         reg, value = tokens
-        return cls(reg_abi_map[reg],int(value,0))
+        return cls(abi_reg_map[reg],int(value,0))
     def __str__(self):
-        reg = reg_abi_map_inv[self.reg] if self.reg is not None else None
         data = f'0x{self.data:X}' if self.data is not None else None
-        return f'RegFileWriteTransaction(reg={reg}, data={data})'
+        return f'RegFileWriteTransaction(reg={self.reg_name}, data={data})'
 
 @dataclasses.dataclass
 class RegFileReadTransaction:
@@ -34,19 +37,27 @@ class RegFileReadTransaction:
         tokens = string.split()
         if len(tokens) == 2:
             reg, value = tokens
-            return cls(reg_abi_map[reg],int(value,0))
+            return cls(abi_reg_map[reg],int(value,0))
         elif len(tokens) == 4:
             reg1, value1, reg2, value2 = tokens
-            return cls(reg_abi_map[reg1],int(value1,0)
-                    ,reg_abi_map[reg2],int(value2,0))
+            return cls(abi_reg_map[reg1],int(value1,0)
+                    ,abi_reg_map[reg2],int(value2,0))
         else:
             ValueError("Invalid transaction")
+    @property
+    def reg1_name(self):
+        if self.reg1 is None:
+            return None
+        return reg_abi_map[self.reg1]
+    @property
+    def reg2_name(self):
+        if self.reg2 is None:
+            return None
+        return reg_abi_map[self.reg2]
     def __str__(self):
-        reg1 = reg_abi_map_inv[self.reg1] if self.reg1 is not None else None
-        reg2 = reg_abi_map_inv[self.reg2] if self.reg2 is not None else None
         data1 = f'0x{self.data1:X}' if self.data1 is not None else None
         data2 = f'0x{self.data2:X}' if self.data2 is not None else None
-        return f'RegFileReadTransaction(reg1={reg1}, data1={data1}, reg2={reg2}, data1={data2})'
+        return f'RegFileReadTransaction(reg1={self.reg1_name}, data1={data1}, reg2={self.reg2_name}, data1={data2})'
                 
 class RegFileBfm:
     def __init__(self,

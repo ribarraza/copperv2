@@ -72,7 +72,11 @@ parser.add_argument('-cocotb_debug', action='store_true',
                     help='Launch cocotb in debug log mode')
 parser.add_argument('-cocotb_testcase',
                     help='Name of the test functions to run (single or comma-separated list)')
-parser.add_argument('-lint', action='store_true',
+parser.add_argument('-cocotb_module',
+                    help='Name of the python module for cocotb (defaults to test_copperv2)')
+parser.add_argument('-run_elf',
+                    help="Path to elf for run_elf test")
+parser.add_argument('-lint_python', action='store_true',
                     help='Lint Python')
 
 args = parser.parse_args()
@@ -88,18 +92,26 @@ if args.chisel:
     run('sbt',default_run_opts,'chisel_shell')
     sys.exit(0)
 
-if args.lint:
+if args.lint_python:
     run("flake8 sim",default_run_opts,'lint')
     sys.exit(0)
 
 if args.cocotb_testcase:
     default_run_opts['env']["TESTCASE"] = args.cocotb_testcase
 
+if args.cocotb_module:
+    default_run_opts['env']["MODULE"] = args.cocotb_module
+
 if args.cocotb_debug:
     default_run_opts['env']["DEBUG_TEST"] = "1"
 
 if args.cocotb_reduced:
     default_run_opts['env']["COCOTB_REDUCED_LOG_FMT"] = "1"
+
+if args.run_elf:
+    default_run_opts['env']["COPPERV_ELF_PATH_CWD"] = str(Path.cwd())
+    default_run_opts['env']["COPPERV_ELF_PATH"] = args.run_elf
+    default_run_opts['env']["TESTCASE"] = "run_elf"
 
 for step in step_list[step_list.index(args._from):step_list.index(args.to)+1]:
     commands = steps[step]

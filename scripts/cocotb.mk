@@ -2,7 +2,7 @@ DUT_COPPERV1 ?= 1
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 WAVES ?= 1
-MODULE = test_copperv2
+MODULE ?= test_copperv2
 export COCOTB_ANSI_OUTPUT = 1
 
 RTL_V1_DIR = $(ROOT)/src/main/resources/rtl_v1

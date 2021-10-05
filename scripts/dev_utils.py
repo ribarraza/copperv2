@@ -26,6 +26,8 @@ class Toolchain:
         return sp.run(cmd,capture_output=True,encoding="utf-8",shell=True,check=True).stdout
     def read_elf(self,elf_file):
         return self.run(self.readelf_cmd+f' -S {elf_file}')
+    def read_elf_symbol_table(self,elf_file):
+        return self.run(self.readelf_cmd+f' -Ws {elf_file}')
     def write_hex(self,elf_file,output_path,format='verilog'):
         return self.run(f'{self.objcopy_cmd} -O {format} {elf_file} {output_path}')
     def read_elf_dump_instruction_sections(self,elf_file,sections):
@@ -58,11 +60,15 @@ def generate_dissassembly_file(diss,elf_file):
     generated(diss)
     return diss
 
-def generate_debug_file(output,elf_file):
+def generate_debug_file(output,elf_file:Path):
     elf_sections = toolchain.read_elf(elf_file)
-    output = Path(output)
+    if output is not None:
+        output = Path(output)
+    else:
+        output = elf_file.with_suffix('.debug')
     temp = _generate_dissassembly_file(elf_file)
-    output.write_text(elf_sections + '\n' + temp)
+    temp1 = toolchain.read_elf_symbol_table(elf_file)
+    output.write_text(elf_sections + '\n' + temp1 + '\n' + temp)
     generated(output)
     return output
 
@@ -264,7 +270,6 @@ if __name__=='__main__':
         metavar='OUT_PATH',
         type=Path,
         help='Output path',
-        required=True,
     )
     parser = argparse.ArgumentParser(description='Generate testbench')
     subparsers = parser.add_subparsers()

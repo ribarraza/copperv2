@@ -3,4 +3,9 @@
         "sim"
     ],
     "cmake.configureOnOpen": false,
+    "files.associations": {
+        "*.svh": "systemverilog",
+        "dhrystone.h": "c",
+        "riscv_test.h": "c"
+    },
 }

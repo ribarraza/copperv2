@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import subprocess
 
 import cocotb
 from cocotb_bus.monitors import BusMonitor, Monitor
@@ -46,3 +47,12 @@ def from_array(data,addr):
 def to_bytes(data):
     return (data).to_bytes(length=4,byteorder='little')
 
+def run(*args,**kwargs):
+    log = SimLog("cocotb")
+    log.debug(f"run: {args}")
+    r = subprocess.run(*args,shell=True,encoding='utf-8',capture_output=True,**kwargs)
+    if r.returncode != 0:
+        log.error(f"run stdout: {r.stdout}")
+        log.error(f"run stderr: {r.stderr}")
+        raise ChildProcessError(f"Error during command execution: {args}")
+    return r

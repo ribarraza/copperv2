@@ -386,9 +386,10 @@ extern clock_t	clock();
 #define CLOCK_TYPE "rdcycle()"
 
 #include "riscv_test.h"
-extern int volatile * const TIMER_COUNT;
-#define Start_Timer() Begin_Time = *TIMER_COUNT
-#define Stop_Timer() End_Time = *TIMER_COUNT
+#include <stdint.h>
+uintptr_t syscall(uintptr_t, uint64_t , uint64_t , uint64_t);
+#define Start_Timer() Begin_Time = *(long*)syscall(63,0,0,0)
+#define Stop_Timer() End_Time = *(long*)syscall(63,0,0,0)
 
 #else
                 /* Use times(2) time function unless    */

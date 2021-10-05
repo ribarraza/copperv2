@@ -8,6 +8,7 @@
 #include <sys/signal.h>
 #include "util.h"
 
+#define SYS_timer 63
 #define SYS_write 64
 
 #undef strcmp
@@ -16,11 +17,20 @@
 int volatile * const TEST_RESULT = T_ADDR;
 int volatile * const SIM_OUT = O_ADDR;
 
-static uintptr_t syscall(uintptr_t which, uint64_t arg0, uint64_t arg1, uint64_t arg2)
+uintptr_t syscall(uintptr_t which, uint64_t arg0, uint64_t arg1, uint64_t arg2)
 {
-    char * buf = (char*)arg1;
-    for(int i = 0; i < arg2; i++){
-        *SIM_OUT = buf[i];
+    switch (which) {
+        case SYS_write: {
+            char * buf = (char*)arg1;
+            for(int i = 0; i < arg2; i++){
+                *SIM_OUT = buf[i];
+            }
+            break;
+        }
+        case SYS_timer:
+            return ((uint32_t*) TC_ADDR);
+        default:
+            break;
     }
 }
 
