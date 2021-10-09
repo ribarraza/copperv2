@@ -44,7 +44,7 @@ def compile_test(instructions):
     test_s.write_text('\n'.join(crt0 + instructions) + '\n')
     cmd = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -Wl,-T,{linker_script},-Bstatic -nostartfiles -ffreestanding -g {test_s} -o {test_elf}"
     run(cmd)
-    elf = read_elf(log,test_elf)
+    elf = read_elf(test_elf)
     return elf
 
 def compile_riscv_test(asm_path):
