@@ -98,11 +98,12 @@ tests = [TestParameters(name,**test) for name,test in tests.items()]
 utf.add_option('params',tests)
 utf.generate_tests()
 
-rvtf = TestFactory(test_function=riscv_test)
-rv_asm_paths = list(sim_dir.glob('tests/isa/rv32ui/*.S'))
-#rv_asm_paths = [rv_asm_paths[0]]
-rvtf.add_option('asm_path',rv_asm_paths)
-rvtf.generate_tests()
+if 'riscv_test' in cocotb.plusargs:
+    rvtf = TestFactory(test_function=riscv_test)
+    rv_asm_paths = list(sim_dir.glob('tests/isa/rv32ui/*.S'))
+    #rv_asm_paths = [rv_asm_paths[0]]
+    rvtf.add_option('asm_path',rv_asm_paths)
+    rvtf.generate_tests()
 
 @cocotb.test(skip=True)
 async def run_elf(dut):

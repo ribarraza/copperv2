@@ -8,4 +8,7 @@
         "dhrystone.h": "c",
         "riscv_test.h": "c"
     },
+    "files.watcherExclude": {
+        "**/target": true
+    },
 }
