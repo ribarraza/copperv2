@@ -47,7 +47,7 @@ class CoppervBus(addr_width: Int, data_width: Int, resp_width: Int) extends Bund
     }
     return (inst,inst_valid)
   }
-  def write_data(write_addr: UInt, write_data: UInt, write_strobe: UInt,write_data_valid: Bool) = {
+  def write_data(write_addr: UInt, write_data: UInt, write_strobe: UInt,write_data_valid: Bool): Bool = {
     val dw_addr = RegInit(0.U)
     val dw_data = RegInit(0.U)
     val dw_strobe = RegInit(0.U)
@@ -64,8 +64,6 @@ class CoppervBus(addr_width: Int, data_width: Int, resp_width: Int) extends Bund
     dw.req.bits.data := dw_data
     dw.req.bits.strobe := dw_strobe
     dw.req.valid := dw_req_valid
-  }
-  def write_valid(): Bool = {
     val write_valid = RegInit(0.B)
     when (dw.resp.fire()) {
         write_valid := MuxLookup(dw.resp.bits,false.B,Array(
@@ -79,10 +77,10 @@ class CoppervBus(addr_width: Int, data_width: Int, resp_width: Int) extends Bund
     dw.resp.ready := dw_resp_ready
     return write_valid
   }
-  def read_address(read_addr: UInt,read_valid: Bool) = {
+  def read_data(read_addr: UInt,addr_valid: Bool): (UInt,Bool) = {
     val dr_addr = RegInit(0.U)
     val dr_addr_valid = RegInit(0.U)
-    when (read_valid) {
+    when (addr_valid) {
       dr_addr := read_addr(31,2) << 2.U
       dr_addr_valid := 1.B
     } .otherwise {
@@ -90,8 +88,6 @@ class CoppervBus(addr_width: Int, data_width: Int, resp_width: Int) extends Bund
     }
     dr.addr.bits := dr_addr
     dr.addr.valid := dr_addr_valid
-  }
-  def read_data(): (UInt,Bool) = {
     val read_data = RegInit(0.U)
     val read_valid = RegInit(0.B)
     when (dr.data.fire()) {
@@ -157,14 +153,12 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
     write_strobe := "b1111".U
     write_data   := regfile.io.rs2_dout
   }
-  val dw_req_fire = control.io.store_data && bus.dw.req.ready
   val read_addr = alu.io.alu_dout
+  val dw_req_fire = control.io.store_data && bus.dw.req.ready
   val dr_req_fire = control.io.load_data && bus.dr.addr.ready
   val (inst,inst_valid) = bus.read_instruction(pc,inst_fetch)
-  val write_valid = bus.write_valid()
-  bus.write_data(write_addr,write_data,write_strobe,dw_req_fire)
-  bus.read_address(read_addr,dr_req_fire)
-  val (read_data,read_valid) = bus.read_data()
+  val write_valid = bus.write_data(write_addr,write_data,write_strobe,dw_req_fire)
+  val (read_data,read_valid) = bus.read_data(read_addr,dr_req_fire)
   idec.io.inst := inst
   control.io.inst_valid := inst_valid
   val read_offset = Reg(UInt(2.W))
