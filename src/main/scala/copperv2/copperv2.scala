@@ -30,6 +30,80 @@ class CoppervBus(addr_width: Int, data_width: Int, resp_width: Int) extends Bund
   val ir = new ReadChannel(addr_width=addr_width,data_width=addr_width)
   val dr = new ReadChannel(addr_width=addr_width,data_width=addr_width)
   val dw = new WriteChannel(addr_width=addr_width,data_width=addr_width,resp_width=resp_width)
+  def read_instruction(addr: UInt, addr_valid: Bool): (UInt,Bool) = {
+    val inst = Reg(UInt())
+    val inst_valid = RegInit(0.B)
+    ir.addr.bits := 0.U
+    ir.addr.valid := addr_valid
+    ir.data.ready := 1.B
+    when (ir.addr.ready) {
+        ir.addr.bits := addr
+    }
+    when (ir.data.fire()) {
+        inst := ir.data.bits
+        inst_valid := 1.B
+    } .otherwise {
+        inst_valid := 0.B
+    }
+    return (inst,inst_valid)
+  }
+  def write_data(write_addr: UInt, write_data: UInt, write_strobe: UInt,write_data_valid: Bool) = {
+    val dw_addr = RegInit(0.U)
+    val dw_data = RegInit(0.U)
+    val dw_strobe = RegInit(0.U)
+    val dw_req_valid = RegInit(0.B)
+    when (write_data_valid) {
+        dw_addr := Cat(write_addr(31,2),0.U(2.W))
+        dw_data := write_data
+        dw_strobe := write_strobe
+        dw_req_valid := 1.B
+    } .otherwise {
+        dw_req_valid := 0.B
+    }
+    dw.req.bits.addr := dw_addr
+    dw.req.bits.data := dw_data
+    dw.req.bits.strobe := dw_strobe
+    dw.req.valid := dw_req_valid
+  }
+  def write_valid(): Bool = {
+    val write_valid = RegInit(0.B)
+    when (dw.resp.fire()) {
+        write_valid := MuxLookup(dw.resp.bits,false.B,Array(
+        0.U -> false.B,
+        1.U -> true.B
+        ))
+    } .otherwise {
+        write_valid := 0.B
+    }
+    val dw_resp_ready = RegInit(1.B)
+    dw.resp.ready := dw_resp_ready
+    return write_valid
+  }
+  def read_address(read_addr: UInt,read_valid: Bool) = {
+    val dr_addr = RegInit(0.U)
+    val dr_addr_valid = RegInit(0.U)
+    when (read_valid) {
+      dr_addr := read_addr(31,2) << 2.U
+      dr_addr_valid := 1.B
+    } .otherwise {
+      dr_addr_valid := 0.B
+    }
+    dr.addr.bits := dr_addr
+    dr.addr.valid := dr_addr_valid
+  }
+  def read_data(): (UInt,Bool) = {
+    val read_data = RegInit(0.U)
+    val read_valid = RegInit(0.B)
+    when (dr.data.fire()) {
+      read_data := dr.data.bits
+      read_valid := 1.B
+    } .otherwise {
+      read_valid := 0.B
+    }
+    val dr_data_ready = RegInit(1.B)
+    dr.data.ready := dr_data_ready
+    return (read_data,read_valid)
+  }
 }
 
 object CoppervCore {
@@ -45,9 +119,7 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   val idec = Module(new idecoder)
   val regfile = Module(new register_file)
   val alu = Module(new arith_logic_unit)
-  val inst = Reg(UInt())
-  val inst_valid = RegInit(0.B)
-  val inst_fetch = Wire(UInt())
+  val inst_fetch = Wire(Bool())
   val pc = RegInit(config.pc_init.U)
   val pc_en = control.io.pc_next_sel =/= PcNextSel.STALL
   val pc_next = MuxLookup(control.io.pc_next_sel.asUInt,pc,Array(
@@ -59,21 +131,7 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   when (pc_en) {
     pc := pc_next
   }
-  bus.ir.addr.bits := 0.U
-  when (bus.ir.addr.ready) {
-    bus.ir.addr.bits := pc
-  }
-  when (bus.ir.data.fire()) {
-    inst := bus.ir.data.bits
-    inst_valid := 1.B
-  } .otherwise {
-    inst_valid := 0.B
-  }
-  bus.ir.addr.valid := inst_fetch
-  idec.io.inst := inst
-  bus.ir.data.ready := 1.B
   control.io.inst_type := InstType(idec.io.inst_type)
-  control.io.inst_valid := inst_valid
   control.io.alu_comp := alu.io.alu_comp
   control.io.funct := Funct(idec.io.funct)
   inst_fetch := control.io.inst_fetch
@@ -85,7 +143,6 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   regfile.io.rd := idec.io.rd
   regfile.io.rs1 := idec.io.rs1
   regfile.io.rs2 := idec.io.rs2
-  val write_valid = RegInit(0.B)
   val write_addr = alu.io.alu_dout
   val write_offset = write_addr(1,0)
   val write_strobe = WireDefault(0.U(4.W))
@@ -100,54 +157,19 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
     write_strobe := "b1111".U
     write_data   := regfile.io.rs2_dout
   }
-  when (bus.dw.resp.fire()) {
-    write_valid := MuxLookup(bus.dw.resp.bits,false.B,Array(
-      0.U -> false.B,
-      1.U -> true.B
-    ))
-  } .otherwise {
-    write_valid := 0.B
-  }
   val dw_req_fire = control.io.store_data && bus.dw.req.ready
-  val dw_addr = RegInit(0.U)
-  val dw_data = RegInit(0.U)
-  val dw_strobe = RegInit(0.U)
-  val dw_req_valid = RegInit(0.B)
-  when (dw_req_fire) {
-    dw_addr := Cat(write_addr(31,2),0.U(2.W))
-    dw_data := write_data
-    dw_strobe := write_strobe
-    dw_req_valid := 1.B
-  } .otherwise {
-    dw_req_valid := 0.B
-  }
-  bus.dw.req.bits.addr := dw_addr
-  bus.dw.req.bits.data := dw_data
-  bus.dw.req.bits.strobe := dw_strobe
-  bus.dw.req.valid := dw_req_valid
   val read_addr = alu.io.alu_dout
   val dr_req_fire = control.io.load_data && bus.dr.addr.ready
+  val (inst,inst_valid) = bus.read_instruction(pc,inst_fetch)
+  val write_valid = bus.write_valid()
+  bus.write_data(write_addr,write_data,write_strobe,dw_req_fire)
+  bus.read_address(read_addr,dr_req_fire)
+  val (read_data,read_valid) = bus.read_data()
+  idec.io.inst := inst
+  control.io.inst_valid := inst_valid
   val read_offset = Reg(UInt(2.W))
-  val dr_addr = RegInit(0.U)
-  val dr_addr_valid = RegInit(0.U)
   when (control.io.load_data) {
     read_offset <= read_addr(1,0)
-  }
-  when (dr_req_fire) {
-    dr_addr := read_addr(31,2) << 2.U
-    dr_addr_valid := 1.B
-  } .otherwise {
-    dr_addr_valid := 0.B
-  }
-  bus.dr.addr.bits := dr_addr
-  bus.dr.addr.valid := dr_addr_valid
-  val read_data = RegInit(0.U)
-  val read_valid = RegInit(0.B)
-  when (bus.dr.data.fire()) {
-    read_data := bus.dr.data.bits
-    read_valid := 1.B
-  } .otherwise {
-    read_valid := 0.B
   }
   val read_data_t = read_data >> (read_offset << 3)
   val ext_read_data = MuxLookup(idec.io.funct,0.S(32.W),Array(
@@ -172,11 +194,7 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
     AluDin2Sel.RS2.asUInt -> regfile.io.rs2_dout,
     AluDin2Sel.CONST_4.asUInt -> 4.U,
   ))
-  val dr_data_ready = RegInit(1.B)
-  bus.dr.data.ready := dr_data_ready
   control.io.data_valid := write_valid || read_valid
-  val dw_resp_ready = RegInit(1.B)
-  bus.dw.resp.ready := dw_resp_ready
 }
 
 class copperv2 extends RawModule {
