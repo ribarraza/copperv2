@@ -78,6 +78,8 @@ parser.add_argument('-run_elf',
                     help="Path to elf for run_elf test")
 parser.add_argument('-lint_python', action='store_true',
                     help='Lint Python')
+parser.add_argument('-riscv_test', action='store_true',
+                    help='Run RISCV test suite')
 
 args = parser.parse_args()
 
@@ -107,6 +109,9 @@ if args.cocotb_debug:
 
 if args.cocotb_reduced:
     default_run_opts['env']["COCOTB_REDUCED_LOG_FMT"] = "1"
+
+if args.riscv_test:
+    default_run_opts['env']["PLUSARGS"] = "+riscv_test"
 
 if args.run_elf:
     default_run_opts['env']["COPPERV_ELF_PATH_CWD"] = str(Path.cwd())
