@@ -30,7 +30,6 @@ TC_ADDR = 0x80000008
 T_PASS = 0x01000001
 T_FAIL = 0x02000001
 
-@cocotb.coroutine
 async def unit_test(dut, params):
     """ Copperv unit tests """
     test_name = f"{get_test_name()}_{params.name}"
@@ -55,7 +54,6 @@ async def unit_test(dut, params):
 
     dut._log.info(f"Test {test_name} finished")
 
-@cocotb.coroutine
 async def riscv_test(dut, asm_path):
     """ RISCV compliance tests """
     test_name = f"{get_test_name()}_{asm_path.stem}"
