@@ -13,11 +13,8 @@ def anext(async_generator):
 def get_top_module(name):
     return cocotb.handle.SimHandle(cocotb.simulator.get_root_handle(name))
 
-def verilog_string(string):
+def to_verilog_string(string):
     return int.from_bytes(string.encode("utf-8"),byteorder='big')
-
-def get_test_name():
-    return cocotb.regression_manager._test.__name__ # pylint: disable=protected-access
 
 @cocotb.coroutine
 async def wait_for_signal(signal):

@@ -8,10 +8,11 @@ import cocotb
 from cocotb.triggers import with_timeout, Timer
 from cocotb.log import SimLog
 from cocotb.regression import TestFactory
+from cocotb_test.simulator import run
+import pytest
 
 from testbench import Testbench
-from cocotb_utils import verilog_string, get_test_name, get_top_module, run
-from riscv_utils import compile_instructions, parse_data_memory, compile_riscv_test, process_elf
+from riscv_utils import compile_instructions, parse_data_memory, compile_riscv_test
 
 if os.environ.get("VS_DEBUG",False):
     import debugpy
@@ -19,10 +20,25 @@ if os.environ.get("VS_DEBUG",False):
     print("Info: debugpy waiting for client...")
     debugpy.wait_for_client()
 
-if 'debug_test' in cocotb.plusargs:
-    SimLog("cocotb").setLevel(logging.DEBUG)
+root_dir = Path(__file__).resolve().parent.parent
+sim_dir = root_dir/'sim'
+chisel_dir = root_dir/'work/chisel'
+rtl_v1_dir = root_dir/'src/main/resources/rtl_v1'
+toml_path = sim_dir/"tests/unit_tests.toml"
+unit_tests = toml.loads(toml_path.read_text())
+rv_asm_paths = list(sim_dir.glob('tests/isa/rv32ui/*.S'))
 
-sim_dir = Path(__file__).resolve().parent
+common_run_opts = dict(
+    verilog_sources=[
+        chisel_dir/"copperv2.v",
+        rtl_v1_dir/"idecoder.v",
+        rtl_v1_dir/"register_file.v",
+    ],
+    includes=[rtl_v1_dir/'include'],
+    toplevel="copperv2",
+    module="test_copperv2",
+    waves = True,
+)
 
 T_ADDR = 0x80000000
 O_ADDR = 0x80000004
@@ -30,13 +46,25 @@ TC_ADDR = 0x80000008
 T_PASS = 0x01000001
 T_FAIL = 0x02000001
 
-async def unit_test(dut, params):
-    """ Copperv unit tests """
-    test_name = f"{get_test_name()}_{params.name}"
-    dut._log.info(f"Test {test_name} started")
+@dataclasses.dataclass
+class TestParameters:
+    name: str
+    instructions: list = dataclasses.field(default_factory=list)
+    expected_regfile_read: list = dataclasses.field(default_factory=list)
+    expected_regfile_write: list = dataclasses.field(default_factory=list)
+    expected_data_read: list = dataclasses.field(default_factory=list)
+    expected_data_write: list = dataclasses.field(default_factory=list)
+    data_memory: list = dataclasses.field(default_factory=list)
+    def __repr__(self):
+        p = '\n'.join([f"{k} = {repr(v)}" for k,v in dataclasses.asdict(self).items()])
+        return '\n' + p
 
-    iverilog_dump = get_top_module("iverilog_dump")
-    iverilog_dump.test_name <= verilog_string(test_name)
+@cocotb.test()
+async def run_unit_test(dut):
+    """ Copperv unit tests """
+    test_name = os.environ['TEST_NAME']
+    params = TestParameters(test_name,**unit_tests[test_name])
+    SimLog("cocotb").setLevel(logging.DEBUG)
 
     instruction_memory = compile_instructions(params.instructions)
     data_memory = parse_data_memory(params.data_memory)
@@ -52,15 +80,12 @@ async def unit_test(dut, params):
     await tb.bus_bfm.do_reset()
     await with_timeout(tb.finish(), 10000, 'ns')
 
-    dut._log.info(f"Test {test_name} finished")
-
-async def riscv_test(dut, asm_path):
+@cocotb.test()
+async def run_riscv_test(dut):
     """ RISCV compliance tests """
-    test_name = f"{get_test_name()}_{asm_path.stem}"
-    dut._log.info(f"Test {test_name} started")
-
-    iverilog_dump = get_top_module("iverilog_dump")
-    iverilog_dump.test_name <= verilog_string(test_name)
+    test_name = os.environ['TEST_NAME']
+    asm_path = Path(os.environ['ASM_PATH'])
+    SimLog("cocotb").setLevel(logging.DEBUG)
 
     instruction_memory, data_memory = compile_riscv_test(asm_path)
     tb = Testbench(dut,
@@ -76,65 +101,26 @@ async def riscv_test(dut, asm_path):
     await Timer(1000, 'ms')
     raise cocotb.result.SimTimeoutError()
 
-@dataclasses.dataclass
-class TestParameters:
-    name: str
-    instructions: list = dataclasses.field(default_factory=list)
-    expected_regfile_read: list = dataclasses.field(default_factory=list)
-    expected_regfile_write: list = dataclasses.field(default_factory=list)
-    expected_data_read: list = dataclasses.field(default_factory=list)
-    expected_data_write: list = dataclasses.field(default_factory=list)
-    data_memory: list = dataclasses.field(default_factory=list)
-    def __repr__(self):
-        p = '\n'.join([f"{k} = {repr(v)}" for k,v in dataclasses.asdict(self).items()])
-        return '\n' + p
+@pytest.mark.parametrize(
+    "parameters", [pytest.param({"TEST_NAME":name},id=name) for name in unit_tests]
+)
+def test_unit(parameters):
+    run(
+        **common_run_opts,
+        extra_env=parameters,
+        sim_build=f"work/sim/unit_test_{parameters['TEST_NAME']}",
+        testcase = "run_unit_test",
+    )
 
-utf = TestFactory(test_function=unit_test)
-toml_path = sim_dir/"tests/simple_test.toml"
-tests = toml.loads(toml_path.read_text())
-tests = [TestParameters(name,**test) for name,test in tests.items()]
-utf.add_option('params',tests)
-utf.generate_tests()
+@pytest.mark.parametrize(
+    "parameters", [pytest.param({"TEST_NAME":path.stem,"ASM_PATH":str(path.resolve())},id=path.stem)
+        for path in rv_asm_paths]
+)
+def test_riscv(parameters):
+    run(
+        **common_run_opts,
+        extra_env=parameters,
+        sim_build=f"work/sim/riscv_test_{parameters['TEST_NAME']}",
+        testcase = "run_riscv_test",
+    )
 
-if 'riscv_test' in cocotb.plusargs:
-    rvtf = TestFactory(test_function=riscv_test)
-    rv_asm_paths = list(sim_dir.glob('tests/isa/rv32ui/*.S'))
-    #rv_asm_paths = [rv_asm_paths[0]]
-    rvtf.add_option('asm_path',rv_asm_paths)
-    rvtf.generate_tests()
-
-@cocotb.test(skip=True)
-async def run_elf(dut):
-    """ Run compiled program in ELF format """
-
-    elf_path = Path(os.environ['COPPERV_ELF_PATH'])
-    if not str(elf_path).startswith('/'):
-        elf_path = Path(os.environ['COPPERV_ELF_PATH_CWD'])/str(elf_path)
-
-    test_name = f"{get_test_name()}_{elf_path.stem}"
-    dut._log.info(f"Test {test_name} started")
-
-    iverilog_dump = get_top_module("iverilog_dump")
-    iverilog_dump.test_name <= verilog_string(test_name)
-
-    instruction_memory, data_memory = process_elf(elf_path)
-    tb = Testbench(dut,
-        test_name,
-        instruction_memory=instruction_memory,
-        data_memory=data_memory,
-        enable_self_checking=False,
-        pass_fail_address = T_ADDR,
-        pass_fail_values = {T_FAIL:False,T_PASS:True},
-        output_address = O_ADDR,
-        timer_address = TC_ADDR)
-
-    tb.bus_bfm.start_clock()
-    await tb.bus_bfm.do_reset()
-    await Timer(1000, 'ms')
-    raise cocotb.result.SimTimeoutError()
-
-#elftf = TestFactory(test_function=run_elf)
-#run('make',cwd = sim_dir/'tests/dhrystone')
-#elf_paths = [sim_dir/'tests/dhrystone/dhrystone.elf']
-#elftf.add_option('elf_path',elf_paths)
-#elftf.generate_tests()

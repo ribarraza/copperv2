@@ -6,7 +6,7 @@ from elftools.elf.elffile import ELFFile
 
 from regfile import RegFileWriteTransaction
 from bus import BusWriteTransaction, BusReadTransaction
-from cocotb_utils import get_test_name, run, to_bytes
+from cocotb_utils import run, to_bytes
 
 sim_dir = Path(__file__).resolve().parent
 linker_script = sim_dir/'tests/common/linker.ld'
@@ -39,8 +39,8 @@ def elf_to_memory(elf):
 
 def compile_test(instructions):
     log = SimLog(__name__+".compile_test")
-    test_s = Path(get_test_name()).with_suffix('.S')
-    test_elf = Path(get_test_name()).with_suffix('.elf')
+    test_s = Path('test').with_suffix('.S')
+    test_elf = Path('test').with_suffix('.elf')
     test_s.write_text('\n'.join(crt0 + instructions) + '\n')
     cmd = f"riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32 -Wl,-T,{linker_script},-Bstatic -nostartfiles -ffreestanding -g {test_s} -o {test_elf}"
     run(cmd)
