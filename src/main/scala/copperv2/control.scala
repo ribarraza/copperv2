@@ -6,7 +6,7 @@ import chisel3.util._
 class ControlIO extends Bundle {
   val inst_type = Input(InstType())
   val inst_valid = Input(Bool())
-  val alu_comp = Input(UInt(3.W))
+  val alu_comp = Input(new AluComp)
   val funct = Input(Funct())
   val data_valid = Input(Bool())
   val inst_fetch = Output(Bool())
@@ -23,14 +23,14 @@ class ControlIO extends Bundle {
 }
 
 class ControlUnit extends Module with RequireSyncReset {
-  def take_branch(funct: Funct.Type,alu_comp: UInt): Bool = {
+  def take_branch(funct: Funct.Type,alu_comp: AluComp): Bool = {
     MuxLookup(funct.asUInt,false.B,Array(
-      Funct.EQ.asUInt   ->  alu_comp(AluComp.EQ.asUInt), 
-      Funct.NEQ.asUInt  -> !alu_comp(AluComp.EQ.asUInt),
-      Funct.LT.asUInt   ->  alu_comp(AluComp.LT.asUInt),
-      Funct.GTE.asUInt  -> !alu_comp(AluComp.LT.asUInt),
-      Funct.LTU.asUInt  ->  alu_comp(AluComp.LTU.asUInt),
-      Funct.GTEU.asUInt -> !alu_comp(AluComp.LTU.asUInt),
+      Funct.EQ.asUInt   ->  alu_comp.EQ, 
+      Funct.NEQ.asUInt  -> !alu_comp.EQ,
+      Funct.LT.asUInt   ->  alu_comp.LT,
+      Funct.GTE.asUInt  -> !alu_comp.LT,
+      Funct.LTU.asUInt  ->  alu_comp.LTU,
+      Funct.GTEU.asUInt -> !alu_comp.LTU,
     ))
   }
   def get_int_alu_op(funct: Funct.Type): AluOp.Type = {

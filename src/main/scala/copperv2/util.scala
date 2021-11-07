@@ -1,5 +1,6 @@
 package copperv2
 
+import chisel3._
 import chisel3.experimental.ChiselEnum
 
 object InstType extends ChiselEnum {
@@ -16,17 +17,17 @@ object InstType extends ChiselEnum {
 }
 
 object Funct extends ChiselEnum {
-  val ADD        = Value
+  val ADD        = Value // 0
   val SUB        = Value
   val AND        = Value
   val EQ         = Value
   val NEQ        = Value
-  val LT         = Value
+  val LT         = Value // 5
   val GTE        = Value
   val LTU        = Value
   val GTEU       = Value
   val MEM_BYTE   = Value
-  val MEM_HWORD  = Value
+  val MEM_HWORD  = Value // 10
   val MEM_WORD   = Value
   val MEM_BYTEU  = Value
   val MEM_HWORDU = Value
@@ -78,10 +79,10 @@ object AluOp extends ChiselEnum {
   val SLTU = Value
 }
 
-object AluComp extends ChiselEnum {
-  val EQ = Value
-  val LT = Value
-  val LTU = Value
+class AluComp extends Bundle {
+  val EQ  = Bool()
+  val LT  = Bool()
+  val LTU = Bool()
 }
 
 object State extends ChiselEnum {

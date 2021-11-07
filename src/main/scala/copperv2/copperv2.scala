@@ -110,11 +110,10 @@ object CoppervCore {
 
 class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule with RequireSyncReset {
   val bus = IO(new CoppervBus(addr_width=CoppervCore.ADDR_WIDTH,data_width=CoppervCore.DATA_WIDTH,resp_width=CoppervCore.RESP_WIDTH))
-  //val control = Module(new control_unit)
   val control = Module(new ControlUnit)
   val idec = Module(new idecoder)
   val regfile = Module(new register_file)
-  val alu = Module(new arith_logic_unit)
+  val alu = Module(new Alu)
   val inst_fetch = Wire(Bool())
   val pc = RegInit(config.pc_init.U)
   val pc_en = control.io.pc_next_sel =/= PcNextSel.STALL
@@ -128,7 +127,7 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
     pc := pc_next
   }
   control.io.inst_type := InstType(idec.io.inst_type)
-  control.io.alu_comp := alu.io.alu_comp
+  control.io.alu_comp := alu.io.comp
   control.io.funct := Funct(idec.io.funct)
   inst_fetch := control.io.inst_fetch
   regfile.io.clk := clock
@@ -139,7 +138,7 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   regfile.io.rd := idec.io.rd
   regfile.io.rs1 := idec.io.rs1
   regfile.io.rs2 := idec.io.rs2
-  val write_addr = alu.io.alu_dout
+  val write_addr = alu.io.dout
   val write_offset = write_addr(1,0)
   val write_strobe = WireDefault(0.U(4.W))
   val write_data = WireDefault(0.U)
@@ -153,7 +152,7 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
     write_strobe := "b1111".U
     write_data   := regfile.io.rs2_dout
   }
-  val read_addr = alu.io.alu_dout
+  val read_addr = alu.io.dout
   val dw_req_fire = control.io.store_data && bus.dw.req.ready
   val dr_req_fire = control.io.load_data && bus.dr.addr.ready
   val (inst,inst_valid) = bus.read_instruction(pc,inst_fetch)
@@ -161,34 +160,34 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   val (read_data,read_valid) = bus.read_data(read_addr,dr_req_fire)
   idec.io.inst := inst
   control.io.inst_valid := inst_valid
+  control.io.data_valid := write_valid || read_valid
   val read_offset = Reg(UInt(2.W))
   when (control.io.load_data) {
     read_offset <= read_addr(1,0)
   }
   val read_data_t = read_data >> (read_offset << 3)
   val ext_read_data = MuxLookup(idec.io.funct,0.S(32.W),Array(
-    9.U -> read_data_t(7,0).asSInt,
-    10.U -> read_data_t(15,0).asSInt,
-    11.U -> read_data_t.asSInt,
-    12.U -> read_data_t(7,0).zext,
-    13.U -> read_data_t(15,0).zext,
+    Funct.MEM_BYTE.asUInt -> read_data_t(7,0).asSInt,
+    Funct.MEM_HWORD.asUInt -> read_data_t(15,0).asSInt,
+    Funct.MEM_WORD.asUInt -> read_data_t.asSInt,
+    Funct.MEM_BYTEU.asUInt -> read_data_t(7,0).zext,
+    Funct.MEM_HWORDU.asUInt -> read_data_t(15,0).zext,
   )).asUInt
   regfile.io.rd_din := MuxLookup(control.io.rd_din_sel.asUInt,idec.io.imm,Array(
     RdDinSel.IMM.asUInt -> idec.io.imm,
-    RdDinSel.ALU.asUInt -> alu.io.alu_dout,
+    RdDinSel.ALU.asUInt -> alu.io.dout,
     RdDinSel.MEM.asUInt -> ext_read_data
   ))
-  alu.io.alu_op := control.io.alu_op.asUInt
-  alu.io.alu_din1 := MuxLookup(control.io.alu_din1_sel.asUInt,regfile.io.rs1_dout,Array(
+  alu.io.op := control.io.alu_op
+  alu.io.din1 := MuxLookup(control.io.alu_din1_sel.asUInt,regfile.io.rs1_dout,Array(
     AluDin1Sel.RS1.asUInt -> regfile.io.rs1_dout,
     AluDin1Sel.PC.asUInt -> pc,
   ))
-  alu.io.alu_din2 := MuxLookup(control.io.alu_din2_sel.asUInt,regfile.io.rs2_dout,Array(
+  alu.io.din2 := MuxLookup(control.io.alu_din2_sel.asUInt,regfile.io.rs2_dout,Array(
     AluDin2Sel.IMM.asUInt -> idec.io.imm,
     AluDin2Sel.RS2.asUInt -> regfile.io.rs2_dout,
     AluDin2Sel.CONST_4.asUInt -> 4.U,
-  ))
-  control.io.data_valid := write_valid || read_valid
+  )) 
 }
 
 class copperv2 extends RawModule {
