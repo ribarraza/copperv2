@@ -22,7 +22,7 @@ if os.environ.get("VS_DEBUG",False):
 
 root_dir = Path(__file__).resolve().parent.parent
 sim_dir = root_dir/'sim'
-chisel_dir = root_dir/'work/chisel'
+chisel_dir = root_dir/'work/rtl'
 rtl_v1_dir = root_dir/'src/main/resources/rtl_v1'
 toml_path = sim_dir/"tests/unit_tests.toml"
 unit_tests = toml.loads(toml_path.read_text())
