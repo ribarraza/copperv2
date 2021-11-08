@@ -80,7 +80,7 @@ async def run_unit_test(dut):
     await tb.bus_bfm.do_reset()
     await tb.finish()
 
-@cocotb.test(timeout_time=10,timeout_unit="us")
+@cocotb.test(timeout_time=100,timeout_unit="us")
 async def run_riscv_test(dut):
     """ RISCV compliance tests """
     test_name = os.environ['TEST_NAME']

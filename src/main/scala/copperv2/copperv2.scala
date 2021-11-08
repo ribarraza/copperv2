@@ -163,9 +163,9 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   control.io.data_valid := write_valid || read_valid
   val read_offset = Reg(UInt(2.W))
   when (control.io.load_data) {
-    read_offset <= read_addr(1,0)
+    read_offset := read_addr(1,0)
   }
-  val read_data_t = read_data >> (read_offset << 3)
+  val read_data_t = (read_data >> (read_offset << 3))
   val ext_read_data = MuxLookup(idec.io.funct,0.S(32.W),Array(
     Funct.MEM_BYTE.asUInt -> read_data_t(7,0).asSInt,
     Funct.MEM_HWORD.asUInt -> read_data_t(15,0).asSInt,
