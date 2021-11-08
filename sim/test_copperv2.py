@@ -59,7 +59,7 @@ class TestParameters:
         p = '\n'.join([f"{k} = {repr(v)}" for k,v in dataclasses.asdict(self).items()])
         return '\n' + p
 
-@cocotb.test()
+@cocotb.test(timeout_time=10,timeout_unit="ms")
 async def run_unit_test(dut):
     """ Copperv unit tests """
     test_name = os.environ['TEST_NAME']
@@ -78,9 +78,9 @@ async def run_unit_test(dut):
         data_memory=data_memory)
     tb.bus_bfm.start_clock()
     await tb.bus_bfm.do_reset()
-    await with_timeout(tb.finish(), 10000, 'ns')
+    await tb.finish()
 
-@cocotb.test()
+@cocotb.test(timeout_time=10,timeout_unit="ms")
 async def run_riscv_test(dut):
     """ RISCV compliance tests """
     test_name = os.environ['TEST_NAME']
@@ -98,8 +98,6 @@ async def run_riscv_test(dut):
 
     tb.bus_bfm.start_clock()
     await tb.bus_bfm.do_reset()
-    await Timer(1000, 'ms')
-    raise cocotb.result.SimTimeoutError()
 
 @pytest.mark.parametrize(
     "parameters", [pytest.param({"TEST_NAME":name},id=name) for name in unit_tests]
