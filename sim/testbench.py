@@ -167,11 +167,8 @@ class Testbench():
         if self.pass_fail_address is not None and self.pass_fail_address == transaction.addr:
             if len(self.fake_uart) > 0:
                 self.log.info("Fake UART output:\n%s",''.join(self.fake_uart))
-            if self.pass_fail_values[transaction.data]:
-                self.log.info("Received test pass from bus")
-                raise cocotb.result.TestSuccess("Received test pass from bus")
-            else:
-                raise cocotb.result.TestFailure("Received test fail from bus")
+            assert self.pass_fail_values[transaction.data] == True, "Received test fail from bus"
+            raise cocotb.result.TestSuccess("Received test pass from bus")
         elif self.output_address is not None and self.output_address == transaction.addr:
             recv = chr(transaction.data)
             self.fake_uart.append(recv)
