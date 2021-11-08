@@ -14,6 +14,6 @@ work/chisel: work/setup
 	date > $@
 
 work/test: work/chisel
-	pytest
+	pytest -n $(shell nproc)
 	date > $@
 
