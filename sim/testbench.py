@@ -194,11 +194,7 @@ class Testbench():
     async def finish(self):
         last_pending = ""
         while True:
-            finish = True
-            for expected in self.scoreboard.expected.values():
-                if len(expected) != 0:
-                    finish = False
-            if finish:
+            if all([len(expected) == 0 for expected in self.scoreboard.expected.values()]):
                 break
             pending = repr({k.name:v for k,v in self.scoreboard.expected.items()})
             if last_pending != pending:
