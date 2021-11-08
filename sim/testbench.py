@@ -1,7 +1,7 @@
 import cocotb
 from cocotb.log import SimLog
 from cocotb_bus.scoreboard import Scoreboard
-from cocotb.triggers import RisingEdge, ClockCycles
+from cocotb.triggers import RisingEdge, ClockCycles, Event
 from pathlib import Path
 from tabulate import tabulate
 
@@ -43,6 +43,7 @@ class Testbench():
         self.timer_address = timer_address
         if self.timer_address is not None:
             cocotb.fork(self.timer())
+        self.end_test = Event()
         ## Process parameters
         self.memory = {**instruction_memory,**data_memory}
         if 'debug_test' in cocotb.plusargs:
@@ -168,7 +169,8 @@ class Testbench():
             if len(self.fake_uart) > 0:
                 self.log.info("Fake UART output:\n%s",''.join(self.fake_uart))
             assert self.pass_fail_values[transaction.data] == True, "Received test fail from bus"
-            raise cocotb.result.TestSuccess("Received test pass from bus")
+            self.log.debug("Received test pass from bus")
+            self.end_test.set()
         elif self.output_address is not None and self.output_address == transaction.addr:
             recv = chr(transaction.data)
             self.fake_uart.append(recv)
