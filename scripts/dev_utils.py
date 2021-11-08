@@ -54,7 +54,9 @@ def _generate_dissassembly_file(elf_file):
     return r
 
 def generate_dissassembly_file(diss,elf_file):
-    diss = Path(diss)
+    diss = elf_file.with_suffix('.debug')
+    if diss is not None:
+        diss = Path(diss)
     r = _generate_dissassembly_file(elf_file)
     diss.write_text(r)
     generated(diss)
