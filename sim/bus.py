@@ -39,7 +39,7 @@ class BusReadTransaction:
     def __str__(self):
         data = f'0x{self.data:X}' if self.data is not None else None
         addr = f'0x{self.addr:X}' if self.addr is not None else None
-        return f'BusReadTransaction(bus_name={self.bus_name}, addr={addr}, data={data})'
+        return f'{self.__class__.__name__}(bus_name={self.bus_name}, addr={addr}, data={data})'
 
 
 @dataclasses.dataclass
@@ -84,7 +84,7 @@ class BusWriteTransaction:
         addr = f'0x{self.addr:X}' if self.addr is not None else None
         strobe = f'0x{self.strobe:X}' if self.strobe is not None else None
         response = f'0x{self.response:X}' if self.response is not None else None
-        return f'BusReadTransaction(bus_name={self.bus_name}, addr={addr}, data={data}, strobe={strobe}, response={response})'
+        return f'{self.__class__.__name__}(bus_name={self.bus_name}, addr={addr}, data={data}, strobe={strobe}, response={response})'
 
 class BusBfm:
     def __init__(self,
