@@ -181,23 +181,23 @@ class BusBfm:
         await wait_for_signal(ready)
         await RisingEdge(self.clock)
         await NextTimeStep()
-        valid <= 1
-        payload <= int(transaction)
+        valid.value = 1
+        payload.value = int(transaction)
         await RisingEdge(self.clock)
         await NextTimeStep()
-        valid <= 0
+        valid.value = 0
     async def drive_ready(self,ready,value):
         await RisingEdge(self.clock)
         await NextTimeStep()
-        ready <= value
+        ready.value = value
     def in_reset(self):
         return not self.reset.value
     def start_clock(self):
         cocotb.fork(Clock(self.clock,10,units='ns').start())
     async def do_reset(self):
-        self.reset <= 0
+        self.reset.value = 0
         await ClockCycles(self.clock,4)
-        self.reset <= 1
+        self.reset.value = 1
         await RisingEdge(self.clock)
 
 class BusMonitor(Monitor):
