@@ -32,7 +32,6 @@ common_run_opts = dict(
     verilog_sources=[
         chisel_dir/"copperv2.v",
         rtl_v1_dir/"idecoder.v",
-        rtl_v1_dir/"register_file.v",
     ],
     includes=[rtl_v1_dir/'include'],
     toplevel="copperv2",
