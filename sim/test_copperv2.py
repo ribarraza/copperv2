@@ -30,7 +30,7 @@ rv_asm_paths = list(sim_dir.glob('tests/isa/rv32ui/*.S'))
 
 common_run_opts = dict(
     verilog_sources=[
-        chisel_dir/"copperv2.v",
+        chisel_dir/"copperv2_rtl.v",
         rtl_v1_dir/"idecoder.v",
     ],
     includes=[rtl_v1_dir/'include'],

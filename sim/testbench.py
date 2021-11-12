@@ -196,7 +196,7 @@ class Testbench():
         while True:
             if all([len(expected) == 0 for expected in self.scoreboard.expected.values()]):
                 break
-            pending = repr({k.name:v for k,v in self.scoreboard.expected.items()})
+            pending = repr({k.name:[str(i) for i in v] for k,v in self.scoreboard.expected.items()})
             if last_pending != pending:
                 self.log.debug(f"Pending transactions: {pending}")
             last_pending = pending

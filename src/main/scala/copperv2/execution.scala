@@ -8,14 +8,19 @@ class Alu extends Module with RequireSyncReset {
     val din1 = Input(UInt(32.W))
     val din2 = Input(UInt(32.W))
     val op = Input(AluOp())
+    val load = Input(Bool())
     val dout = Output(UInt(32.W))
     val comp = Output(new AluComp())
   })
-  val in1 = Wire(UInt())
-  val in2 = Wire(UInt())
-  in1 := io.din1
-  in2 := io.din2
-  io.dout := MuxLookup(io.op.asUInt,0.U,Array(
+  val in1 = Reg(UInt())
+  val in2 = Reg(UInt())
+  val op = Reg(AluOp())
+  when (io.load) {
+    in1 := io.din1
+    in2 := io.din2
+    op := io.op
+  }
+  io.dout := MuxLookup(op.asUInt,0.U,Array(
     AluOp.NOP.asUInt  -> 0.U,
     AluOp.ADD.asUInt  -> (in1 + in2), 
     AluOp.SUB.asUInt  -> (in1 - in2),

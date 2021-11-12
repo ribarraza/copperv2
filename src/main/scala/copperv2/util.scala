@@ -4,12 +4,12 @@ import chisel3._
 import chisel3.experimental.ChiselEnum
 
 object InstType extends ChiselEnum {
-  val IMM     = Value
+  val IMM     = Value // 0
   val INT_IMM = Value
   val INT_REG = Value
   val BRANCH  = Value
   val STORE   = Value
-  val JAL     = Value
+  val JAL     = Value // 5
   val AUIPC   = Value
   val JALR    = Value
   val LOAD    = Value
@@ -42,6 +42,7 @@ object Funct extends ChiselEnum {
 }
 
 object RdDinSel extends ChiselEnum {
+  val NONE = Value
   val IMM = Value
   val ALU = Value
   val MEM = Value
@@ -86,10 +87,10 @@ class AluComp extends Bundle {
 }
 
 object State extends ChiselEnum {
-  val RESET  = Value
+  val RESET  = Value // 0
   val IDLE   = Value
   val FETCH  = Value
   val DECODE = Value
   val EXEC   = Value
-  val MEM    = Value
+  val MEM    = Value // 5
 }

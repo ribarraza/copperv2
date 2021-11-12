@@ -67,9 +67,9 @@ class CoppervBus(addr_width: Int, data_width: Int, resp_width: Int) extends Bund
     val write_valid = RegInit(0.B)
     when (dw.resp.fire()) {
         write_valid := MuxLookup(dw.resp.bits,false.B,Array(
-        0.U -> false.B,
-        1.U -> true.B
-        ))
+            0.U -> false.B,
+            1.U -> true.B
+          ))
     } .otherwise {
         write_valid := 0.B
     }
@@ -112,7 +112,7 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   val bus = IO(new CoppervBus(addr_width=CoppervCore.ADDR_WIDTH,data_width=CoppervCore.DATA_WIDTH,resp_width=CoppervCore.RESP_WIDTH))
   val control = Module(new ControlUnit)
   val idec = Module(new idecoder)
-  val regfile = Module(new register_file)
+  val regfile = Module(new RegFile)
   val alu = Module(new Alu)
   val inst_fetch = Wire(Bool())
   val pc = RegInit(config.pc_init.U)
@@ -130,8 +130,6 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
   control.io.alu_comp := alu.io.comp
   control.io.funct := Funct(idec.io.funct)
   inst_fetch := control.io.inst_fetch
-  regfile.io.clk := clock
-  regfile.io.rst := ~reset.asBool()
   regfile.io.rd_en := control.io.rd_en
   regfile.io.rs1_en := control.io.rs1_en
   regfile.io.rs2_en := control.io.rs2_en
@@ -174,11 +172,13 @@ class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule 
     Funct.MEM_HWORDU.asUInt -> read_data_t(15,0).zext,
   )).asUInt
   regfile.io.rd_din := MuxLookup(control.io.rd_din_sel.asUInt,idec.io.imm,Array(
+    RdDinSel.NONE.asUInt -> 0.U,
     RdDinSel.IMM.asUInt -> idec.io.imm,
     RdDinSel.ALU.asUInt -> alu.io.dout,
     RdDinSel.MEM.asUInt -> ext_read_data
   ))
   alu.io.op := control.io.alu_op
+  alu.io.load := control.io.alu_load
   alu.io.din1 := MuxLookup(control.io.alu_din1_sel.asUInt,regfile.io.rs1_dout,Array(
     AluDin1Sel.RS1.asUInt -> regfile.io.rs1_dout,
     AluDin1Sel.PC.asUInt -> pc,
