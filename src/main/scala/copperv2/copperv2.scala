@@ -26,7 +26,7 @@ class WriteChannel(addr_width: Int, data_width: Int, resp_width: Int) extends Bu
   val resp = Flipped(Decoupled(UInt(resp_width.W)))
 }
 
-class CoppervBus(addr_width: Int, data_width: Int, resp_width: Int) extends Bundle {
+class CoppervBusSource(addr_width: Int, data_width: Int, resp_width: Int) extends Bundle {
   val ir = new ReadChannel(addr_width=addr_width,data_width=addr_width)
   val dr = new ReadChannel(addr_width=addr_width,data_width=addr_width)
   val dw = new WriteChannel(addr_width=addr_width,data_width=addr_width,resp_width=resp_width)
@@ -109,7 +109,7 @@ object CoppervCore {
 }
 
 class Copperv2Core(config: Cuv2Config = new Cuv2Config()) extends MultiIOModule with RequireSyncReset {
-  val bus = IO(new CoppervBus(addr_width=CoppervCore.ADDR_WIDTH,data_width=CoppervCore.DATA_WIDTH,resp_width=CoppervCore.RESP_WIDTH))
+  val bus = IO(new CoppervBusSource(addr_width=CoppervCore.ADDR_WIDTH,data_width=CoppervCore.DATA_WIDTH,resp_width=CoppervCore.RESP_WIDTH))
   val control = Module(new ControlUnit)
   val idec = Module(new idecoder)
   val regfile = Module(new RegFile)
