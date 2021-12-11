@@ -55,7 +55,14 @@ expected_data_write = []
 data_memory = []
 
 [beq_take]
-instructions = [ "addi t0, zero, 9", "addi t1, zero, 9", "beq t0, t1, here", "addi t2, zero, 0x11", "here:", "addi t3, zero, 0x22",]
+instructions = [
+    "addi t0, zero, 9",
+    "addi t1, zero, 9",
+    "beq t0, t1, here",
+    "addi t2, zero, 0x11",
+    "here:",
+    "addi t3, zero, 0x22",
+]
 expected_regfile_read = [ "zero 0", "zero 0", "t0 9 t1 9", "zero 0",]
 expected_regfile_write = [ "t0 9", "t1 9", "t3 0x22",]
 expected_data_read = []

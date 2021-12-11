@@ -1,3 +1,5 @@
+.coursier/
+
 ### Project Specific stuff
 *.debug
 *.E

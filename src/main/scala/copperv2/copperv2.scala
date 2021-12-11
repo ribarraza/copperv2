@@ -2,6 +2,7 @@ package copperv2
 
 import chisel3._
 import chisel3.util.{Decoupled,MuxLookup,Cat}
+import chisel3.stage.{ChiselStage, ChiselGeneratorAnnotation}
 
 class Cuv2Config {
   var pc_init = 0
@@ -237,4 +238,10 @@ class copperv2 extends RawModule {
     core.bus.dw.resp.valid := dw_resp_valid
     core.bus.dw.resp.bits  := dw_resp
   }
+}
+
+object Copperv2Driver extends App {
+  val verilog_args = Array("--target-dir", "work/rtl") ++ args
+  (new ChiselStage).emitVerilog(new copperv2.copperv2, verilog_args ++ Array("-o","copperv2_rtl.v"))
+//  (new ChiselStage).execute(Array("--emit-modules", "verilog"),Seq(ChiselGeneratorAnnotation(() => new copperv2.copperv2)))
 }

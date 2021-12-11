@@ -10,7 +10,7 @@ work/setup:
 	date > $@
 
 work/chisel: work/setup
-	sbt "runMain Copperv2Driver"
+	./scripts/mill copperv2.run
 	date > $@
 
 work/test: work/chisel

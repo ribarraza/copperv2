@@ -74,14 +74,14 @@ class ControlUnit extends Module with RequireSyncReset {
     }
     is (State.FETCH) {
       when (io.inst_valid) {
-        val sel = io.inst_type === InstType.JAL
-        state_next := Mux(sel, State.EXEC, State.DECODE)
+        //state_next := Mux(io.inst_type === InstType.JAL, State.EXEC, State.DECODE)
+        state_next := State.DECODE
       }.otherwise {
         state_next := State.FETCH
       }
     }
     is (State.DECODE) {
-      val sel = io.inst_type === InstType.IMM || io.inst_type === InstType.FENCE
+      val sel = io.inst_type === InstType.IMM || io.inst_type === InstType.FENCE || io.inst_type === InstType.JAL
       state_next := Mux(sel, State.FETCH, State.EXEC)
     }
     is (State.EXEC) {
@@ -132,7 +132,7 @@ class ControlUnit extends Module with RequireSyncReset {
           is (InstType.BRANCH) {
             io.alu_din1_sel := AluDin1Sel.RS1;
             io.alu_din2_sel := AluDin2Sel.RS2;
-            io.pc_next_sel := Mux(take_branch(io.funct,io.alu_comp),PcNextSel.ADD_IMM,PcNextSel.INCR)
+            io.alu_load := true.B
           }
           is (InstType.STORE, InstType.LOAD) {
             io.alu_din1_sel := AluDin1Sel.RS1;
@@ -159,6 +159,9 @@ class ControlUnit extends Module with RequireSyncReset {
       switch (io.inst_type) {
         is (InstType.STORE) {io.store_data := state_change}
         is (InstType.LOAD)  {io.load_data := state_change}
+        is (InstType.BRANCH) {
+          io.pc_next_sel := Mux(take_branch(io.funct,io.alu_comp),PcNextSel.ADD_IMM,PcNextSel.INCR)
+        }
       }
     }
     is (State.MEM) {
