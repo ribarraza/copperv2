@@ -81,11 +81,11 @@ class ControlUnit extends Module with RequireSyncReset {
       }
     }
     is (State.DECODE) {
-      val sel = io.inst_type === InstType.IMM || io.inst_type === InstType.FENCE || io.inst_type === InstType.JAL
+      val sel = io.inst_type === InstType.IMM || io.inst_type === InstType.FENCE
       state_next := Mux(sel, State.FETCH, State.EXEC)
     }
     is (State.EXEC) {
-      val sel = io.inst_type === InstType.STORE || io.inst_type === InstType.LOAD || io.inst_type === InstType.INT_IMM || io.inst_type === InstType.INT_REG
+      val sel = io.inst_type === InstType.STORE || io.inst_type === InstType.LOAD
       state_next := Mux(sel, State.MEM, State.FETCH)
     }
     is (State.MEM) {
@@ -141,8 +141,6 @@ class ControlUnit extends Module with RequireSyncReset {
             io.alu_load := true.B
           }
           is (InstType.JAL,InstType.AUIPC,InstType.JALR) {
-            io.rd_en := true.B;
-            io.rd_din_sel := RdDinSel.ALU;
             io.alu_din1_sel := AluDin1Sel.PC;
             io.alu_din2_sel := Mux(io.inst_type === InstType.AUIPC,AluDin2Sel.IMM,AluDin2Sel.CONST_4);
             io.pc_next_sel := MuxLookup(io.inst_type.asUInt,PcNextSel.INCR,Array(
@@ -162,20 +160,23 @@ class ControlUnit extends Module with RequireSyncReset {
         is (InstType.BRANCH) {
           io.pc_next_sel := Mux(take_branch(io.funct,io.alu_comp),PcNextSel.ADD_IMM,PcNextSel.INCR)
         }
+        is (InstType.JAL,InstType.AUIPC,InstType.JALR) {
+          io.rd_en := true.B;
+          io.rd_din_sel := RdDinSel.ALU;
+        }
+        is (InstType.INT_IMM,InstType.INT_REG) {
+          io.rd_en := true.B
+          io.rd_din_sel := RdDinSel.ALU
+        }
       }
     }
     is (State.MEM) {
-      when (io.inst_type === InstType.INT_IMM | io.inst_type === InstType.INT_REG) {
-        io.rd_en := true.B
-        io.rd_din_sel := RdDinSel.ALU
-      }.otherwise {
-        when (state_change_next) {
-          when (io.inst_type === InstType.LOAD) {
-            io.rd_en := true.B
-            io.rd_din_sel := RdDinSel.MEM
-          }
-          io.pc_next_sel := PcNextSel.INCR
+      when (state_change_next) {
+        when (io.inst_type === InstType.LOAD) {
+          io.rd_en := true.B
+          io.rd_din_sel := RdDinSel.MEM
         }
+        io.pc_next_sel := PcNextSel.INCR
       }
     }
   }

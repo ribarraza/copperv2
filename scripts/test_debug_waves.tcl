@@ -38,6 +38,15 @@ add_signal copperv2.core.control.state $state_enum
 add_signal copperv2.core.alu.in1
 add_signal copperv2.core.alu.in2
 add_signal copperv2.core.alu.io_load
+add_signal copperv2.core.regfile.rd
+add_signal copperv2.core.regfile.rd_en
+add_signal copperv2.core.regfile.rd_din
+add_signal copperv2.core.regfile.rs1
+add_signal copperv2.core.regfile.rs1_en
+add_signal copperv2.core.regfile.rs1_dout
+add_signal copperv2.core.regfile.rs2
+add_signal copperv2.core.regfile.rs2_en
+add_signal copperv2.core.regfile.rs2_dout
 
 zoom_all
 
