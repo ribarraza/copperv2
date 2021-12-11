@@ -93,4 +93,5 @@ object State extends ChiselEnum {
   val DECODE = Value
   val EXEC   = Value
   val MEM    = Value // 5
+  val COMMIT = Value
 }

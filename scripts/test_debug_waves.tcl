@@ -32,6 +32,7 @@ dict set state_enum FETCH  2
 dict set state_enum DECODE 3
 dict set state_enum EXEC   4
 dict set state_enum MEM    5
+dict set state_enum COMMIT 6
 
 add_signal copperv2.core.pc
 add_signal copperv2.core.control.state $state_enum

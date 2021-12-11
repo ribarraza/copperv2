@@ -73,110 +73,106 @@ class ControlUnit extends Module with RequireSyncReset {
       state_next := State.FETCH
     }
     is (State.FETCH) {
-      when (io.inst_valid) {
-        //state_next := Mux(io.inst_type === InstType.JAL, State.EXEC, State.DECODE)
-        state_next := State.DECODE
-      }.otherwise {
-        state_next := State.FETCH
-      }
+      val to_decode = io.inst_valid
+      state_next := Mux(to_decode, State.DECODE, State.FETCH)
     }
     is (State.DECODE) {
-      val sel = io.inst_type === InstType.IMM || io.inst_type === InstType.FENCE
-      state_next := Mux(sel, State.FETCH, State.EXEC)
+      val to_fetch = io.inst_type === InstType.IMM || io.inst_type === InstType.FENCE
+      state_next := Mux(to_fetch, State.FETCH, State.EXEC)
     }
     is (State.EXEC) {
-      val sel = io.inst_type === InstType.STORE || io.inst_type === InstType.LOAD
-      state_next := Mux(sel, State.MEM, State.FETCH)
+      val to_mem = io.inst_type === InstType.STORE || io.inst_type === InstType.LOAD
+      state_next := Mux(to_mem, State.MEM, State.COMMIT)
     }
     is (State.MEM) {
-      when (io.inst_type === InstType.INT_IMM || io.inst_type === InstType.INT_REG) {
-        state_next := State.FETCH
-      } otherwise {
-        state_next := Mux(io.data_valid, State.FETCH, State.MEM)
-      }
+      val to_commit = io.data_valid
+      state_next := Mux(to_commit, State.COMMIT, State.MEM)
+    }
+    is (State.COMMIT) {
+      state_next := State.FETCH
     }
   }
   switch (state) {
     is (State.FETCH) {
       io.inst_fetch := state_change
-      when (state_change_next) {
-        switch (io.inst_type) {
-          is (InstType.IMM) {
-            io.rd_en := true.B
-            io.rd_din_sel := RdDinSel.IMM
-            io.pc_next_sel := PcNextSel.INCR
-          }
-          is (InstType.INT_IMM,InstType.LOAD,InstType.JALR) {
-            io.rs1_en := true.B;
-          }
-          is (InstType.INT_REG,InstType.BRANCH,InstType.STORE) {
-            io.rs1_en := true.B;
-            io.rs2_en := true.B;
-          }
-          is (InstType.FENCE) {
-            io.pc_next_sel := PcNextSel.INCR
-          }
-        }
-      }
     }
     is (State.DECODE) {
-      when (state_change_next) {
-        switch (io.inst_type) {
-          is (InstType.INT_IMM,InstType.INT_REG) {
-            io.alu_din1_sel := AluDin1Sel.RS1;
-            io.alu_din2_sel := Mux(io.inst_type === InstType.INT_IMM,AluDin2Sel.IMM,AluDin2Sel.RS2)
-            io.pc_next_sel := PcNextSel.INCR;
-            io.alu_op := get_int_alu_op(io.funct);
-            io.alu_load := true.B
-          }
-          is (InstType.BRANCH) {
-            io.alu_din1_sel := AluDin1Sel.RS1;
-            io.alu_din2_sel := AluDin2Sel.RS2;
-            io.alu_load := true.B
-          }
-          is (InstType.STORE, InstType.LOAD) {
-            io.alu_din1_sel := AluDin1Sel.RS1;
-            io.alu_din2_sel := AluDin2Sel.IMM;
-            io.alu_op := AluOp.ADD;
-            io.alu_load := true.B
-          }
-          is (InstType.JAL,InstType.AUIPC,InstType.JALR) {
-            io.alu_din1_sel := AluDin1Sel.PC;
-            io.alu_din2_sel := Mux(io.inst_type === InstType.AUIPC,AluDin2Sel.IMM,AluDin2Sel.CONST_4);
-            io.pc_next_sel := MuxLookup(io.inst_type.asUInt,PcNextSel.INCR,Array(
-              InstType.JAL.asUInt -> PcNextSel.ADD_IMM,
-              InstType.JALR.asUInt -> PcNextSel.ADD_RS1_IMM,
-            ))
-            io.alu_op := AluOp.ADD;
-            io.alu_load := true.B
-          }
+      switch (io.inst_type) {
+        is (InstType.IMM) {
+          io.rd_en := true.B
+          io.rd_din_sel := RdDinSel.IMM
+          io.pc_next_sel := PcNextSel.INCR
+        }
+        is (InstType.INT_IMM,InstType.LOAD,InstType.JALR) {
+          io.rs1_en := true.B;
+        }
+        is (InstType.INT_REG,InstType.BRANCH,InstType.STORE) {
+          io.rs1_en := true.B;
+          io.rs2_en := true.B;
+        }
+        is (InstType.FENCE) {
+          io.pc_next_sel := PcNextSel.INCR
         }
       }
     }
     is (State.EXEC) {
       switch (io.inst_type) {
-        is (InstType.STORE) {io.store_data := state_change}
-        is (InstType.LOAD)  {io.load_data := state_change}
+        is (InstType.INT_IMM,InstType.INT_REG) {
+          io.alu_din1_sel := AluDin1Sel.RS1;
+          io.alu_din2_sel := Mux(io.inst_type === InstType.INT_IMM,AluDin2Sel.IMM,AluDin2Sel.RS2)
+          io.alu_op := get_int_alu_op(io.funct);
+          io.alu_load := true.B
+        }
         is (InstType.BRANCH) {
-          io.pc_next_sel := Mux(take_branch(io.funct,io.alu_comp),PcNextSel.ADD_IMM,PcNextSel.INCR)
+          io.alu_din1_sel := AluDin1Sel.RS1;
+          io.alu_din2_sel := AluDin2Sel.RS2;
+          io.alu_load := true.B
+        }
+        is (InstType.STORE, InstType.LOAD) {
+          io.alu_din1_sel := AluDin1Sel.RS1;
+          io.alu_din2_sel := AluDin2Sel.IMM;
+          io.alu_op := AluOp.ADD;
+          io.alu_load := true.B
         }
         is (InstType.JAL,InstType.AUIPC,InstType.JALR) {
-          io.rd_en := true.B;
-          io.rd_din_sel := RdDinSel.ALU;
-        }
-        is (InstType.INT_IMM,InstType.INT_REG) {
-          io.rd_en := true.B
-          io.rd_din_sel := RdDinSel.ALU
+          io.alu_din1_sel := AluDin1Sel.PC;
+          io.alu_din2_sel := Mux(io.inst_type === InstType.AUIPC,AluDin2Sel.IMM,AluDin2Sel.CONST_4);
+          io.alu_op := AluOp.ADD;
+          io.alu_load := true.B
         }
       }
     }
     is (State.MEM) {
-      when (state_change_next) {
-        when (io.inst_type === InstType.LOAD) {
-          io.rd_en := true.B
-          io.rd_din_sel := RdDinSel.MEM
+      switch (io.inst_type) {
+        is (InstType.STORE) {io.store_data := state_change}
+        is (InstType.LOAD)  {io.load_data := state_change}
+      }
+    }
+    is (State.COMMIT) {
+      switch (io.inst_type) {
+        is (InstType.BRANCH) {
+          io.pc_next_sel := Mux(take_branch(io.funct,io.alu_comp),PcNextSel.ADD_IMM,PcNextSel.INCR)
         }
-        io.pc_next_sel := PcNextSel.INCR
+        is (InstType.JAL,InstType.AUIPC,InstType.JALR) {
+          io.pc_next_sel := MuxLookup(io.inst_type.asUInt,PcNextSel.INCR,Array(
+            InstType.JAL.asUInt -> PcNextSel.ADD_IMM,
+            InstType.JALR.asUInt -> PcNextSel.ADD_RS1_IMM,
+          ))
+          io.rd_en := true.B;
+          io.rd_din_sel := RdDinSel.ALU;
+        }
+        is (InstType.INT_IMM,InstType.INT_REG) {
+          io.pc_next_sel := PcNextSel.INCR;
+          io.rd_en := true.B
+          io.rd_din_sel := RdDinSel.ALU
+        }
+        is (InstType.LOAD,InstType.STORE) {
+          io.pc_next_sel := PcNextSel.INCR
+          when (io.inst_type === InstType.LOAD) {
+            io.rd_en := true.B
+            io.rd_din_sel := RdDinSel.MEM
+          }
+        }
       }
     }
   }
