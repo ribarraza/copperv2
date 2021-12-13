@@ -11,5 +11,5 @@
     "files.watcherExclude": {
         "**/target": true
     },
-    "python.defaultInterpreterPath": ".venv/bin/python"
+    "python.defaultInterpreterPath": ".venv/bin/python",
 }

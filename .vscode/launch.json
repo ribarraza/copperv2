@@ -5,21 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Cocotb",
+            "name": "Python: Remote Attach",
             "type": "python",
             "request": "attach",
-            "port": 4440,
-            "preLaunchTask": "cocotb",
-        },
-        {
-            "type": "scala",
-            "name": "Chisel",
-            "request": "launch",
-            "mainClass": "Copperv2Driver",
-            "args": [
-                "--target-dir",
-                "${workspaceFolder}/work/chisel"
-            ],
+            "connect": {
+                "host": "localhost",
+                "port": 4440
+            },
         }
     ]
-} 
+}
