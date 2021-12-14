@@ -120,41 +120,6 @@ class ReadyValidBfm(Bfm):
         await RisingEdge(self.clock)
         self.bus.valid.value = value
 
-class ChannelBfm(Bfm):
-    """ bus: [req_ready,req_valid,resp_ready,resp_valid]
-        resp_payload: {...}
-        req_payload: {...}"""
-    def __init__(self, signals, clock, req_payload, resp_payload, reset=None, reset_n=None, period=10, period_unit="ns"):
-        self.clock = clock
-        super().__init__(signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
-        self.req_bfm = ReadyValidBfm(
-            signals=dict(
-                ready = self.bus.req_ready,
-                valid = self.bus.req_valid,
-            ),
-            payload=req_payload,
-            clock = self.clock,
-            reset_n = self.bus.reset_n,
-        )
-        self.resp_bfm = ReadyValidBfm(
-            signals=dict(
-                ready = self.bus.resp_ready,
-                valid = self.bus.resp_valid,
-            ),
-            payload=resp_payload,
-            clock = self.clock,
-            reset_n = self.bus.reset_n,
-            init_valid = True
-        )
-    async def send_response(self,**kwargs):
-        await self.resp_bfm.send_payload(**kwargs)
-    async def drive_ready(self,value):
-        await self.req_bfm.drive_ready(value)
-    def get_request(self):
-        return self.req_bfm.recv_payload()
-    def get_response(self):
-        return self.resp_bfm.recv_payload()
-
 class CoppervBusBfm(Bfm):
     """ bus: [
             ir_addr_valid
@@ -182,70 +147,50 @@ class CoppervBusBfm(Bfm):
     def __init__(self, signals, clock, reset=None, reset_n=None, period=10, period_unit="ns"):
         self.clock = clock
         super().__init__(signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
-        self.ir_bfm = ChannelBfm(
-            signals=dict(
-                req_ready = self.bus.ir_addr_ready,
-                req_valid = self.bus.ir_addr_valid,
-                resp_ready = self.bus.ir_data_ready,
-                resp_valid = self.bus.ir_data_valid,
-            ),
-            req_payload=dict(addr=self.bus.ir_addr),
-            resp_payload=dict(data=self.bus.ir_data),
-            clock = self.clock,
-            reset_n = self.bus.reset_n,
-        )
-        self.dr_bfm = ChannelBfm(
-            signals=dict(
-                req_ready = self.bus.dr_addr_ready,
-                req_valid = self.bus.dr_addr_valid,
-                resp_ready = self.bus.dr_data_ready,
-                resp_valid = self.bus.dr_data_valid,
-            ),
-            req_payload=dict(addr=self.bus.dr_addr),
-            resp_payload=dict(data=self.bus.dr_data),
-            clock = self.clock,
-            reset_n = self.bus.reset_n,
-        )
-        self.dw_bfm = ChannelBfm(
-            signals=dict(
-                req_ready = self.bus.dw_data_addr_ready,
-                req_valid = self.bus.dw_data_addr_valid,
-                resp_ready = self.bus.dw_resp_ready,
-                resp_valid = self.bus.dw_resp_valid,
-            ),
-            req_payload=dict(
+        channels = dict(
+            ir_addr=(dict(addr=self.bus.ir_addr),False),
+            ir_data=(dict(data=self.bus.ir_data),True),
+            dr_addr=(dict(addr=self.bus.dr_addr),False),
+            dr_data=(dict(data=self.bus.dr_data),True),
+            dw_data_addr=(dict(
                 data=self.bus.dw_data,
                 addr=self.bus.dw_addr,
                 strobe=self.bus.dw_strobe,
-            ),
-            resp_payload=dict(resp=self.bus.dw_resp),
-            clock = self.clock,
-            reset_n = self.bus.reset_n,
+            ),False),
+            dw_resp=(dict(resp=self.bus.dw_resp),True),
         )
+        for ch_name,temp in channels.items():
+            payload,init_valid=temp
+            signals = dict(
+                ready = getattr(self.bus,f"{ch_name}_ready"),
+                valid = getattr(self.bus,f"{ch_name}_valid"),
+            )
+            bfm = ReadyValidBfm(signals,payload,clock,reset_n=self.bus.reset_n,init_valid=init_valid)
+            setattr(self,f"{ch_name}_bfm",bfm)
     async def ir_send_response(self,**kwargs):
-        await self.ir_bfm.send_response(**kwargs)
+        await self.ir_data_bfm.send_payload(**kwargs)
     async def ir_drive_ready(self,value):
-        await self.ir_bfm.drive_ready(value)
+        await self.ir_addr_bfm.drive_ready(value)
     def ir_get_request(self):
-        return self.ir_bfm.get_request()
+        return self.ir_addr_bfm.recv_payload()
     def ir_get_response(self):
-        return self.ir_bfm.get_response()
+        return self.ir_data_bfm.recv_payload()
     async def dr_send_response(self,**kwargs):
-        await self.dr_bfm.send_response(**kwargs)
+        await self.dr_data_bfm.send_payload(**kwargs)
     async def dr_drive_ready(self,value):
-        await self.dr_bfm.drive_ready(value)
+        await self.dr_addr_bfm.drive_ready(value)
     def dr_get_request(self):
-        return self.dr_bfm.get_request()
+        return self.dr_addr_bfm.recv_payload()
     def dr_get_response(self):
-        return self.dr_bfm.get_response()
+        return self.dr_data_bfm.recv_payload()
     async def dw_send_response(self,**kwargs):
-        await self.dw_bfm.send_response(**kwargs)
+        await self.dw_resp_bfm.send_payload(**kwargs)
     async def dw_drive_ready(self,value):
-        await self.dw_bfm.drive_ready(value)
+        await self.dw_data_addr_bfm.drive_ready(value)
     def dw_get_request(self):
-        return self.dw_bfm.get_request()
+        return self.dw_data_addr_bfm.recv_payload()
     def dw_get_response(self):
-        return self.dw_bfm.get_response()
+        return self.dw_resp_bfm.recv_payload()
 
 class BusMonitor(Monitor):
     def __init__(self,name,transaction_type,bfm_recv_req,bfm_recv_resp=None,callback=None,event=None,bus_name=None):

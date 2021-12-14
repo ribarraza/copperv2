@@ -5,7 +5,7 @@ from cocotb.triggers import RisingEdge, ClockCycles, Event
 from pathlib import Path
 from tabulate import tabulate
 
-from bus import BusReadTransaction, BusWriteTransaction, ChannelBfm, CoppervBusBfm, ReadyValidBfm, BusMonitor, BusSourceDriver
+from bus import BusReadTransaction, BusWriteTransaction, CoppervBusBfm, BusMonitor, BusSourceDriver
 from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransaction, RegFileWriteTransaction, RegFileBfm
 from cocotb_utils import from_array, to_bytes
 from riscv_utils import StackMonitor
