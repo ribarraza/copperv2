@@ -1,11 +1,38 @@
-from types import SimpleNamespace
+from collections import namedtuple
 import subprocess
 
 import cocotb
-from cocotb_bus.monitors import BusMonitor, Monitor
-from cocotb_bus.drivers import BusDriver, Driver
 from cocotb.log import SimLog
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, FallingEdge
+from cocotb.types import Logic
+
+class Bfm:
+    def __init__(self,signals,reset=None,reset_n=None):
+        self.log = SimLog(f"cocotb.{type(self).__qualname__}")
+        self.reset = reset
+        self.reset_n = reset_n
+        self._bus_class = namedtuple(type(self).__name__+"Bus",signals.keys())
+        self.bus = self._bus_class(**signals)
+    @property
+    def in_reset(self):
+        """Boolean flag showing whether the bus is in reset state or not."""
+        if self.reset_n is not None:
+            return not bool(self.reset_n.value.integer)
+        if self.reset is not None:
+            return bool(self.reset.value.integer)
+        return False
+    async def wait_for_signal(self,signal):
+        await ReadOnly()
+        while Logic(signal.value.binstr) != Logic(1):
+            await RisingEdge(signal)
+            await ReadOnly()
+        await NextTimeStep()
+    async def wait_for_nsignal(self,signal):
+        await ReadOnly()
+        while Logic(signal.value.binstr) != Logic(0):
+            await FallingEdge(signal)
+            await ReadOnly()
+        await NextTimeStep()
 
 def anext(async_generator):
     return async_generator.__anext__()
@@ -15,22 +42,6 @@ def get_top_module(name):
 
 def to_verilog_string(string):
     return int.from_bytes(string.encode("utf-8"),byteorder='big')
-
-@cocotb.coroutine
-async def wait_for_signal(signal):
-    await ReadOnly()
-    while signal.value.integer != 1:
-        await RisingEdge(signal)
-        await ReadOnly()
-    await NextTimeStep()
-
-@cocotb.coroutine
-async def wait_for_nsignal(signal):
-    await ReadOnly()
-    while signal.value.integer != 0:
-        await FallingEdge(signal)
-        await ReadOnly()
-    await NextTimeStep()
 
 def from_array(data,addr):
     buf = []

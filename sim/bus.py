@@ -7,9 +7,8 @@ from cocotb.clock import Clock
 from cocotb_bus.monitors import Monitor
 from cocotb_bus.drivers import Driver
 from cocotb.log import SimLog
-from cocotb.queue import Queue
 
-from cocotb_utils import wait_for_signal, anext
+from cocotb_utils import Bfm, anext
 
 @dataclasses.dataclass
 class BusReadTransaction:
@@ -25,12 +24,12 @@ class BusReadTransaction:
             addr=int(addr,0))
     @classmethod
     def from_reqresp(cls, bus_name, request, response = None):
-        new = cls(bus_name=bus_name,addr=request)
+        new = cls(bus_name=bus_name,addr=request['addr'])
         if response is not None:
-            new.data = response
+            new.data = response['data']
         return new
     def to_reqresp(self):
-        return dict(request = self.addr, response = self.data)
+        return dict(request = self.addr, response = dict(data=self.data))
     @classmethod
     def default_transaction(cls,bus_name):
         return cls(bus_name=bus_name,addr=0,data=0)
@@ -66,12 +65,12 @@ class BusWriteTransaction:
             addr = request['addr'],
             strobe = request['strobe'])
         if response is not None:
-            new.response = response
+            new.response = response['resp']
         return new
     def to_reqresp(self):
         return dict(
                 request = dict(data=self.data,addr=self.addr,strobe=self.strobe),
-                response = self.response
+                response = dict(resp=self.response)
             )
     @classmethod
     def default_transaction(cls,bus_name):
@@ -86,119 +85,48 @@ class BusWriteTransaction:
         response = f'0x{self.response:X}' if self.response is not None else None
         return f'{self.__class__.__name__}(bus_name={self.bus_name}, addr={addr}, data={data}, strobe={strobe}, response={response})'
 
-class BusBfm:
-    def __init__(self,
-            clock,
-            reset,
-            ir_addr_valid,
-            ir_addr_ready,
-            ir_addr,
-            ir_data_valid,
-            ir_data_ready,
-            ir_data,
-            dr_addr_valid,
-            dr_addr_ready,
-            dr_addr,
-            dr_data_valid,
-            dr_data_ready,
-            dr_data,
-            dw_data_addr_ready,
-            dw_data_addr_valid,
-            dw_data,
-            dw_addr,
-            dw_strobe,
-            dw_resp_ready,
-            dw_resp_valid,
-            dw_resp,
-        ):
+class ReadyValidBfm(Bfm):
+    """ bus: [ready,valid]
+        payload: {...}"""
+    def __init__(self,signals,payload,clock,reset_n,init_valid=False):
         self.clock = clock
-        self.reset = reset
-        self.ir_addr_valid = ir_addr_valid
-        self.ir_addr_ready = ir_addr_ready
-        self.ir_addr = ir_addr
-        self.ir_data_valid = ir_data_valid
-        self.ir_data_ready = ir_data_ready
-        self.ir_data = ir_data
-        self.dr_addr_valid = dr_addr_valid
-        self.dr_addr_ready = dr_addr_ready
-        self.dr_addr = dr_addr
-        self.dr_data_valid = dr_data_valid
-        self.dr_data_ready = dr_data_ready
-        self.dr_data = dr_data
-        self.dw_data_addr_ready = dw_data_addr_ready
-        self.dw_data_addr_valid = dw_data_addr_valid
-        self.dw_data = dw_data
-        self.dw_addr = dw_addr
-        self.dw_strobe = dw_strobe
-        self.dw_resp_ready = dw_resp_ready
-        self.dw_resp_valid = dw_resp_valid
-        self.dw_resp = dw_resp
-        self.name = "bus_bfm"
-        self.log = SimLog(f"cocotb.{self.name}")
-        self.queues = {}
-    def recv_ir_req(self):
-        return self.recv_channel(self.ir_addr_ready,self.ir_addr_valid,self.ir_addr)
-    def recv_ir_resp(self): 
-        return self.recv_channel(self.ir_data_ready,self.ir_data_valid,self.ir_data)
-    def recv_ir_req(self):
-        return self.recv_channel(self.ir_addr_ready,self.ir_addr_valid,self.ir_addr)
-    def recv_ir_resp(self):
-        return self.recv_channel(self.ir_data_ready,self.ir_data_valid,self.ir_data)
-    def recv_dr_req(self):
-        return self.recv_channel(self.dr_addr_ready,self.dr_addr_valid,self.dr_addr)
-    def recv_dr_resp(self):
-        return self.recv_channel(self.dr_data_ready,self.dr_data_valid,self.dr_data)
-    def recv_dw_req(self):
-        dw_payload = dict(addr=self.dw_addr,data=self.dw_data,strobe=self.dw_strobe)
-        return self.recv_channel(self.dw_data_addr_ready,self.dw_data_addr_valid,dw_payload)
-    def recv_dw_resp(self): 
-        return self.recv_channel(self.dw_resp_ready,self.dw_resp_valid,self.dw_resp)
-    def send_ir_resp(self,transaction):
-        return self.send_channel(self.ir_data_ready,self.ir_data_valid,self.ir_data,transaction)
-    def send_dr_resp(self,transaction):
-        return self.send_channel(self.dr_data_ready,self.dr_data_valid,self.dr_data,transaction)
-    def send_dw_resp(self,transaction):
-        return self.send_channel(self.dw_resp_ready,self.dw_resp_valid,self.dw_resp,transaction)
-    def drive_ir_ready(self,value):
-        return self.drive_ready(self.ir_addr_ready,value)
-    def drive_dr_ready(self,value):
-        return self.drive_ready(self.dr_addr_ready,value)
-    def drive_dw_ready(self,value):
-        return self.drive_ready(self.dw_data_addr_ready,value)
-    async def recv_channel(self,ready,valid,payload):
+        self.payload = payload
+        Bfm.__init__(self,signals,reset_n = reset_n)
+        if init_valid:
+            self.bus.valid.setimmediatevalue(0)
+    def start_clock(self):
+        cocotb.start_soon(Clock(self.clock,10,"ns").start())
+    async def reset_dut(self):
+        await RisingEdge(self.clock)
+        self.reset_n.value = 0
+        await RisingEdge(self.clock)
+        self.reset_n.value = 1
+    async def recv_payload(self):
         while(True):
             await RisingEdge(self.clock)
             await ReadOnly()
-            if self.in_reset():
+            if self.in_reset:
                 continue
-            if ready.value and valid.value:
-                if isinstance(payload, dict):
-                    payload_value = {k:int(p.value) for k,p in payload.items()}
-                else:
-                    payload_value = int(payload.value)
-                yield payload_value
-    async def send_channel(self,ready,valid,payload,transaction):
-        await wait_for_signal(ready)
+            if self.bus.ready.value and self.bus.valid.value:
+                actual_payload = {k:int(p.value) for k,p in self.payload.items()}
+                yield actual_payload
+    async def send_payload(self,**kwargs):
+        self.log.debug(f"Send payload {self.bus.ready.name} {kwargs}")
+        await self.wait_for_signal(self.bus.ready)
         await RisingEdge(self.clock)
-        await NextTimeStep()
-        valid.value = 1
-        payload.value = int(transaction)
+        self.bus.valid.value = 1
+        for name,payload_signal in self.payload.items():
+            payload_signal.value = int(kwargs[name])
         await RisingEdge(self.clock)
-        await NextTimeStep()
-        valid.value = 0
-    async def drive_ready(self,ready,value):
+        self.bus.valid.value = 0
+    async def drive_ready(self,value):
+        self.log.debug(f"Drive ready {self.bus.ready.name} {value}")
         await RisingEdge(self.clock)
-        await NextTimeStep()
-        ready.value = value
-    def in_reset(self):
-        return not self.reset.value
-    def start_clock(self):
-        cocotb.fork(Clock(self.clock,10,units='ns').start())
-    async def do_reset(self):
-        self.reset.value = 0
-        await ClockCycles(self.clock,4)
-        self.reset.value = 1
+        self.bus.ready.value = value
+    async def drive_valid(self,value):
+        self.log.debug(f"Drive valid {self.bus.valid.name} {value}")
         await RisingEdge(self.clock)
+        self.bus.valid.value = value
 
 class BusMonitor(Monitor):
     def __init__(self,name,transaction_type,bfm_recv_req,bfm_recv_resp=None,callback=None,event=None,bus_name=None):
@@ -237,16 +165,13 @@ class BusSourceDriver(Driver):
         self.transaction_type = transaction_type
         super().__init__()
         ## reset
-        self.append(self.transaction_type.default_transaction(name))
         self.append('assert_ready')
     async def _driver_send(self, transaction, sync: bool = True):
         if isinstance(transaction, self.transaction_type):
             transaction = self.transaction_type.to_reqresp(transaction)
-            #self.log.debug("%s responding read transaction: %s", self.name, transaction)
-            await self.bfm_send_resp(transaction['response'])
+            self.log.debug("%s responding read transaction: %s", self.name, transaction)
+            await self.bfm_send_resp(**transaction['response'])
         elif transaction == "assert_ready":
-            self.log.debug("Assert ready")
             await self.bfm_drive_ready(True)
         elif transaction == "deassert_ready":
-            self.log.debug("Deassert ready")
             await self.bfm_drive_ready(False)

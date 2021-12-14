@@ -5,7 +5,7 @@ from cocotb.triggers import RisingEdge, ClockCycles, Event
 from pathlib import Path
 from tabulate import tabulate
 
-from bus import BusReadTransaction, BusWriteTransaction, BusBfm, BusMonitor, BusSourceDriver
+from bus import BusReadTransaction, BusWriteTransaction, ReadyValidBfm, BusMonitor, BusSourceDriver
 from regfile import RegFileReadMonitor, RegFileWriteMonitor, RegFileReadTransaction, RegFileWriteTransaction, RegFileBfm
 from cocotb_utils import from_array, to_bytes
 from riscv_utils import StackMonitor
@@ -29,12 +29,12 @@ class Testbench():
         self.test_name = test_name
         self.dut = dut
         self.clock = self.dut.clk
-        self.reset = self.dut.rst
+        self.reset_n = self.dut.rst
         if cocotb.plusargs.get('dut_copperv1',False):
             core = self.dut
         else:
             core = self.dut.core
-        self.reset.setimmediatevalue(0)
+        self.reset_n.setimmediatevalue(0)
         self.pass_fail_address = pass_fail_address
         self.pass_fail_values = pass_fail_values
         self.output_address = output_address
@@ -62,33 +62,71 @@ class Testbench():
         #self.log.debug(f"Data memory: {data_memory}")
         #self.log.debug(f"Memory: {self.memory}")
         ## Bus functional models
-        self.bus_bfm = BusBfm(
+        ir_addr_bfm = ReadyValidBfm(
+            signals=dict(
+                ready = self.dut.ir_addr_ready,
+                valid = self.dut.ir_addr_valid,
+            ),
+            payload=dict(addr=self.dut.ir_addr),
             clock = self.clock,
-            reset = self.reset,
-            ir_addr_valid = self.dut.ir_addr_valid,
-            ir_addr_ready = self.dut.ir_addr_ready,
-            ir_addr = self.dut.ir_addr,
-            ir_data_valid = self.dut.ir_data_valid,
-            ir_data_ready = self.dut.ir_data_ready,
-            ir_data = self.dut.ir_data,
-            dr_addr_valid = self.dut.dr_addr_valid,
-            dr_addr_ready = self.dut.dr_addr_ready,
-            dr_addr = self.dut.dr_addr,
-            dr_data_valid = self.dut.dr_data_valid,
-            dr_data_ready = self.dut.dr_data_ready,
-            dr_data = self.dut.dr_data,
-            dw_data_addr_ready = self.dut.dw_data_addr_ready,
-            dw_data_addr_valid = self.dut.dw_data_addr_valid,
-            dw_data = self.dut.dw_data,
-            dw_addr = self.dut.dw_addr,
-            dw_strobe = self.dut.dw_strobe,
-            dw_resp_ready = self.dut.dw_resp_ready,
-            dw_resp_valid = self.dut.dw_resp_valid,
-            dw_resp = self.dut.dw_resp,
+            reset_n = self.reset_n,
+        )
+        self.bus_bfm = ir_addr_bfm
+        ir_data_bfm = ReadyValidBfm(
+            signals=dict(
+                ready = self.dut.ir_data_ready,
+                valid = self.dut.ir_data_valid,
+            ),
+            payload=dict(data=self.dut.ir_data),
+            clock = self.clock,
+            reset_n = self.reset_n,
+            init_valid = True
+        )
+        dr_addr_bfm = ReadyValidBfm(
+            signals=dict(
+                ready = self.dut.dr_addr_ready,
+                valid = self.dut.dr_addr_valid,
+            ),
+            payload=dict(addr=self.dut.dr_addr),
+            clock = self.clock,
+            reset_n = self.reset_n,
+        )
+        dr_data_bfm = ReadyValidBfm(
+            signals=dict(
+                ready = self.dut.dr_data_ready,
+                valid = self.dut.dr_data_valid,
+            ),
+            payload=dict(data=self.dut.dr_data),
+            clock = self.clock,
+            reset_n = self.reset_n,
+            init_valid = True
+        )
+        dw_data_addr_bfm = ReadyValidBfm(
+            signals=dict(
+                ready = self.dut.dw_data_addr_ready,
+                valid = self.dut.dw_data_addr_valid,
+            ),
+            payload=dict(
+                data=self.dut.dw_data,
+                addr=self.dut.dw_addr,
+                strobe=self.dut.dw_strobe,
+            ),
+            clock = self.clock,
+            reset_n = self.reset_n,
+        )
+        dw_resp_bfm = ReadyValidBfm(
+            signals=dict(
+                ready = self.dut.dw_resp_ready,
+                valid = self.dut.dw_resp_valid,
+            ),
+            payload=dict(resp=self.dut.dw_resp),
+            clock = self.clock,
+            reset_n = self.reset_n,
+            init_valid = True
         )
         regfile_bfm = RegFileBfm(
             clock = self.clock,
-            reset = self.reset,
+            reset = self.reset_n,
             rd_en = core.regfile.rd_en,
             rd_addr = core.regfile.rd,
             rd_data = core.regfile.rd_din,
@@ -100,19 +138,19 @@ class Testbench():
             rs2_data = core.regfile.rs2_dout,
         )
         ## Instruction read
-        self.bus_ir_driver = BusSourceDriver("bus_ir",BusReadTransaction,self.bus_bfm.send_ir_resp,self.bus_bfm.drive_ir_ready)
-        self.bus_ir_monitor = BusMonitor("bus_ir",BusReadTransaction,self.bus_bfm.recv_ir_req,self.bus_bfm.recv_ir_resp)
-        self.bus_ir_req_monitor = BusMonitor("bus_ir_req",BusReadTransaction,self.bus_bfm.recv_ir_req,
+        self.bus_ir_driver = BusSourceDriver("bus_ir",BusReadTransaction,ir_data_bfm.send_payload,ir_addr_bfm.drive_ready)
+        self.bus_ir_monitor = BusMonitor("bus_ir",BusReadTransaction,ir_addr_bfm.recv_payload,ir_data_bfm.recv_payload)
+        self.bus_ir_req_monitor = BusMonitor("bus_ir_req",BusReadTransaction,ir_addr_bfm.recv_payload,
             callback=self.memory_callback,bus_name="bus_ir")
         ## Data read
-        self.bus_dr_driver = BusSourceDriver("bus_dr",BusReadTransaction,self.bus_bfm.send_dr_resp,self.bus_bfm.drive_dr_ready)
-        self.bus_dr_monitor = BusMonitor("bus_dr",BusReadTransaction,self.bus_bfm.recv_dr_req,self.bus_bfm.recv_dr_resp)
-        self.bus_dr_req_monitor = BusMonitor("bus_dr_req",BusReadTransaction,self.bus_bfm.recv_dr_req,
+        self.bus_dr_driver = BusSourceDriver("bus_dr",BusReadTransaction,dr_data_bfm.send_payload,dr_addr_bfm.drive_ready)
+        self.bus_dr_monitor = BusMonitor("bus_dr",BusReadTransaction,dr_addr_bfm.recv_payload,dr_data_bfm.recv_payload)
+        self.bus_dr_req_monitor = BusMonitor("bus_dr_req",BusReadTransaction,dr_addr_bfm.recv_payload,
             callback=self.memory_callback,bus_name="bus_dr")
         ## Data write
-        self.bus_dw_driver = BusSourceDriver("bus_dw",BusWriteTransaction,self.bus_bfm.send_dw_resp,self.bus_bfm.drive_dw_ready)
-        self.bus_dw_monitor = BusMonitor("bus_dw",BusWriteTransaction,self.bus_bfm.recv_dw_req,self.bus_bfm.recv_dw_resp)
-        self.bus_dw_req_monitor = BusMonitor("bus_dw_req",BusWriteTransaction,self.bus_bfm.recv_dw_req,
+        self.bus_dw_driver = BusSourceDriver("bus_dw",BusWriteTransaction,dw_resp_bfm.send_payload,dw_data_addr_bfm.drive_ready)
+        self.bus_dw_monitor = BusMonitor("bus_dw",BusWriteTransaction,dw_data_addr_bfm.recv_payload,dw_resp_bfm.recv_payload)
+        self.bus_dw_req_monitor = BusMonitor("bus_dw_req",BusWriteTransaction,dw_data_addr_bfm.recv_payload,
             callback=self.memory_callback,bus_name="bus_dw")
         ## Regfile
         self.regfile_write_monitor = RegFileWriteMonitor("regfile_write",regfile_bfm)
@@ -131,6 +169,7 @@ class Testbench():
             await RisingEdge(self.clock)
             self.timer_counter += 1
     def memory_callback(self, transaction):
+        self.log.debug(f"Memory callback {transaction}")
         if isinstance(transaction,BusReadTransaction) and transaction.bus_name == 'bus_ir':
             driver_transaction = "deassert_ready"
             if self.end_i_address is None or (self.end_i_address is not None and transaction.addr < self.end_i_address):

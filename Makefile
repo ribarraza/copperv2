@@ -17,5 +17,5 @@ clean:
 work/rtl/copperv2_rtl.v: $(shell find ./src -name '*.scala' -o -name '*.v')
 	./scripts/mill copperv2.run
 
-work/sim/result.xml: work/rtl/copperv2_rtl.v .venv
+work/sim/result.xml: work/rtl/copperv2_rtl.v .venv $(shell find ./sim -name '*.py')
 	source .venv/bin/activate; pytest -n $(shell nproc) --junitxml="$@"
