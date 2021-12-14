@@ -87,10 +87,10 @@ class BusWriteTransaction:
 class ReadyValidBfm(Bfm):
     """ bus: [ready,valid]
         payload: {...}"""
-    def __init__(self,signals,payload,clock,reset_n,init_valid=False):
+    def __init__(self, signals, payload, clock, reset=None, reset_n=None, period=10, period_unit="ns",init_valid=False):
         self.clock = clock
         self.payload = payload
-        Bfm.__init__(self,signals,reset_n = reset_n)
+        Bfm.__init__(self,signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
         if init_valid:
             self.bus.valid.setimmediatevalue(0)
     async def recv_payload(self):
@@ -124,9 +124,9 @@ class ChannelBfm(Bfm):
     """ bus: [req_ready,req_valid,resp_ready,resp_valid]
         resp_payload: {...}
         req_payload: {...}"""
-    def __init__(self,signals,req_payload,resp_payload,clock,reset_n):
+    def __init__(self, signals, clock, req_payload, resp_payload, reset=None, reset_n=None, period=10, period_unit="ns"):
         self.clock = clock
-        Bfm.__init__(self,signals,reset_n = reset_n)
+        super().__init__(signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
         self.req_bfm = ReadyValidBfm(
             signals=dict(
                 ready = self.bus.req_ready,
@@ -154,6 +154,98 @@ class ChannelBfm(Bfm):
         return self.req_bfm.recv_payload()
     def get_response(self):
         return self.resp_bfm.recv_payload()
+
+class CoppervBusBfm(Bfm):
+    """ bus: [
+            ir_addr_valid
+            ir_addr_ready
+            ir_addr
+            ir_data_valid
+            ir_data_ready
+            ir_data
+            dr_addr_valid
+            dr_addr_ready
+            dr_addr
+            dr_data_valid
+            dr_data_ready
+            dr_data
+            dw_data_addr_ready
+            dw_data_addr_valid
+            dw_data
+            dw_addr
+            dw_strobe
+            dw_resp_ready
+            dw_resp_valid
+            dw_resp
+        ]
+    """
+    def __init__(self, signals, clock, reset=None, reset_n=None, period=10, period_unit="ns"):
+        self.clock = clock
+        super().__init__(signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
+        self.ir_bfm = ChannelBfm(
+            signals=dict(
+                req_ready = self.bus.ir_addr_ready,
+                req_valid = self.bus.ir_addr_valid,
+                resp_ready = self.bus.ir_data_ready,
+                resp_valid = self.bus.ir_data_valid,
+            ),
+            req_payload=dict(addr=self.bus.ir_addr),
+            resp_payload=dict(data=self.bus.ir_data),
+            clock = self.clock,
+            reset_n = self.bus.reset_n,
+        )
+        self.dr_bfm = ChannelBfm(
+            signals=dict(
+                req_ready = self.bus.dr_addr_ready,
+                req_valid = self.bus.dr_addr_valid,
+                resp_ready = self.bus.dr_data_ready,
+                resp_valid = self.bus.dr_data_valid,
+            ),
+            req_payload=dict(addr=self.bus.dr_addr),
+            resp_payload=dict(data=self.bus.dr_data),
+            clock = self.clock,
+            reset_n = self.bus.reset_n,
+        )
+        self.dw_bfm = ChannelBfm(
+            signals=dict(
+                req_ready = self.bus.dw_data_addr_ready,
+                req_valid = self.bus.dw_data_addr_valid,
+                resp_ready = self.bus.dw_resp_ready,
+                resp_valid = self.bus.dw_resp_valid,
+            ),
+            req_payload=dict(
+                data=self.bus.dw_data,
+                addr=self.bus.dw_addr,
+                strobe=self.bus.dw_strobe,
+            ),
+            resp_payload=dict(resp=self.bus.dw_resp),
+            clock = self.clock,
+            reset_n = self.bus.reset_n,
+        )
+    async def ir_send_response(self,**kwargs):
+        await self.ir_bfm.send_response(**kwargs)
+    async def ir_drive_ready(self,value):
+        await self.ir_bfm.drive_ready(value)
+    def ir_get_request(self):
+        return self.ir_bfm.get_request()
+    def ir_get_response(self):
+        return self.ir_bfm.get_response()
+    async def dr_send_response(self,**kwargs):
+        await self.dr_bfm.send_response(**kwargs)
+    async def dr_drive_ready(self,value):
+        await self.dr_bfm.drive_ready(value)
+    def dr_get_request(self):
+        return self.dr_bfm.get_request()
+    def dr_get_response(self):
+        return self.dr_bfm.get_response()
+    async def dw_send_response(self,**kwargs):
+        await self.dw_bfm.send_response(**kwargs)
+    async def dw_drive_ready(self,value):
+        await self.dw_bfm.drive_ready(value)
+    def dw_get_request(self):
+        return self.dw_bfm.get_request()
+    def dw_get_response(self):
+        return self.dw_bfm.get_response()
 
 class BusMonitor(Monitor):
     def __init__(self,name,transaction_type,bfm_recv_req,bfm_recv_resp=None,callback=None,event=None,bus_name=None):
