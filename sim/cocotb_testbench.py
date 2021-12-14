@@ -19,7 +19,7 @@ async def run_ready_valid_bfm_test(dut):
     payload = dict(data = dut.data)
     bfm = ReadyValidBfm(signals,payload,dut.clock,dut.reset)
     bfm.start_clock()
-    await bfm.reset_dut()
+    await bfm.reset()
     await bfm.drive_ready(1)
     send_task = cocotb.start_soon(bfm.send_payload(data=reference))
     received = await anext(bfm.recv_payload())

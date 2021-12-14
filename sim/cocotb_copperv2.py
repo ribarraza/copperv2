@@ -60,7 +60,7 @@ async def run_unit_test(dut):
         instruction_memory=instruction_memory,
         data_memory=data_memory)
     tb.bus_bfm.start_clock()
-    await tb.bus_bfm.reset_dut()
+    await tb.bus_bfm.reset()
     await tb.finish()
 
 @cocotb.test(timeout_time=100,timeout_unit="us")
@@ -80,5 +80,5 @@ async def run_riscv_test(dut):
         pass_fail_values = {T_FAIL:False,T_PASS:True})
 
     tb.bus_bfm.start_clock()
-    await tb.bus_bfm.reset_dut()
+    await tb.bus_bfm.reset()
     await tb.end_test.wait()

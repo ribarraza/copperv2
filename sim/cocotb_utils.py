@@ -5,21 +5,28 @@ import cocotb
 from cocotb.log import SimLog
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, FallingEdge
 from cocotb.types import Logic
+from cocotb.clock import Clock
 
 class Bfm:
-    def __init__(self,signals,reset=None,reset_n=None):
+    def __init__(self,signals,reset=None,reset_n=None,period=10,period_unit="ns"):
         self.log = SimLog(f"cocotb.{type(self).__qualname__}")
-        self.reset = reset
-        self.reset_n = reset_n
+        self._reset = reset
+        self._reset_n = reset_n
+        self.period = period
+        self.period_unit = period_unit
+        if self._reset is not None:
+            signals['reset'] = self._reset
+        if self._reset_n is not None:
+            signals['reset_n'] = self._reset_n
         self._bus_class = namedtuple(type(self).__name__+"Bus",signals.keys())
         self.bus = self._bus_class(**signals)
     @property
     def in_reset(self):
         """Boolean flag showing whether the bus is in reset state or not."""
-        if self.reset_n is not None:
-            return not bool(self.reset_n.value.integer)
-        if self.reset is not None:
-            return bool(self.reset.value.integer)
+        if self._reset_n is not None:
+            return not bool(self._reset_n.value.integer)
+        if self._reset is not None:
+            return bool(self._reset.value.integer)
         return False
     async def wait_for_signal(self,signal):
         await ReadOnly()
@@ -33,6 +40,19 @@ class Bfm:
             await FallingEdge(signal)
             await ReadOnly()
         await NextTimeStep()
+    def start_clock(self):
+        cocotb.start_soon(Clock(self.clock,self.period,self.period_unit).start())
+    async def reset(self):
+        if self._reset_n is not None:
+            await RisingEdge(self.clock)
+            self._reset_n.value = 0
+            await RisingEdge(self.clock)
+            self._reset_n.value = 1
+        if self._reset is not None:
+            await RisingEdge(self.clock)
+            self._reset.value = 1
+            await RisingEdge(self.clock)
+            self._reset.value = 0
 
 def anext(async_generator):
     return async_generator.__anext__()

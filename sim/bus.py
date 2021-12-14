@@ -3,7 +3,6 @@ import typing
 
 import cocotb
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, ClockCycles
-from cocotb.clock import Clock
 from cocotb_bus.monitors import Monitor
 from cocotb_bus.drivers import Driver
 from cocotb.log import SimLog
@@ -94,13 +93,6 @@ class ReadyValidBfm(Bfm):
         Bfm.__init__(self,signals,reset_n = reset_n)
         if init_valid:
             self.bus.valid.setimmediatevalue(0)
-    def start_clock(self):
-        cocotb.start_soon(Clock(self.clock,10,"ns").start())
-    async def reset_dut(self):
-        await RisingEdge(self.clock)
-        self.reset_n.value = 0
-        await RisingEdge(self.clock)
-        self.reset_n.value = 1
     async def recv_payload(self):
         while(True):
             await RisingEdge(self.clock)
@@ -127,6 +119,41 @@ class ReadyValidBfm(Bfm):
         self.log.debug(f"Drive valid {self.bus.valid.name} {value}")
         await RisingEdge(self.clock)
         self.bus.valid.value = value
+
+class ChannelBfm(Bfm):
+    """ bus: [req_ready,req_valid,resp_ready,resp_valid]
+        resp_payload: {...}
+        req_payload: {...}"""
+    def __init__(self,signals,req_payload,resp_payload,clock,reset_n):
+        self.clock = clock
+        Bfm.__init__(self,signals,reset_n = reset_n)
+        self.req_bfm = ReadyValidBfm(
+            signals=dict(
+                ready = self.bus.req_ready,
+                valid = self.bus.req_valid,
+            ),
+            payload=req_payload,
+            clock = self.clock,
+            reset_n = self.bus.reset_n,
+        )
+        self.resp_bfm = ReadyValidBfm(
+            signals=dict(
+                ready = self.bus.resp_ready,
+                valid = self.bus.resp_valid,
+            ),
+            payload=resp_payload,
+            clock = self.clock,
+            reset_n = self.bus.reset_n,
+            init_valid = True
+        )
+    async def send_response(self,**kwargs):
+        await self.resp_bfm.send_payload(**kwargs)
+    async def drive_ready(self,value):
+        await self.req_bfm.drive_ready(value)
+    def get_request(self):
+        return self.req_bfm.recv_payload()
+    def get_response(self):
+        return self.resp_bfm.recv_payload()
 
 class BusMonitor(Monitor):
     def __init__(self,name,transaction_type,bfm_recv_req,bfm_recv_resp=None,callback=None,event=None,bus_name=None):
