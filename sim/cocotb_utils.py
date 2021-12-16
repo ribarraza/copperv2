@@ -9,7 +9,7 @@ from cocotb.clock import Clock
 
 class Bfm:
     def __init__(self,signals,reset=None,reset_n=None,period=10,period_unit="ns"):
-        self.log = SimLog(f"cocotb.{type(self).__qualname__}")
+        self.log = SimLog(f"bfm.{type(self).__qualname__}")
         self._reset = reset
         self._reset_n = reset_n
         self.period = period

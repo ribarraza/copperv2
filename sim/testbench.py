@@ -90,16 +90,18 @@ class Testbench():
         )
         regfile_bfm = RegFileBfm(
             clock = self.clock,
-            reset = self.reset_n,
-            rd_en = core.regfile.rd_en,
-            rd_addr = core.regfile.rd,
-            rd_data = core.regfile.rd_din,
-            rs1_en = core.regfile.rs1_en,
-            rs1_addr = core.regfile.rs1,
-            rs1_data = core.regfile.rs1_dout,
-            rs2_en = core.regfile.rs2_en,
-            rs2_addr = core.regfile.rs2,
-            rs2_data = core.regfile.rs2_dout,
+            reset_n = self.reset_n,
+            signals = dict(
+                rd_en = core.regfile.rd_en,
+                rd_addr = core.regfile.rd,
+                rd_data = core.regfile.rd_din,
+                rs1_en = core.regfile.rs1_en,
+                rs1_addr = core.regfile.rs1,
+                rs1_data = core.regfile.rs1_dout,
+                rs2_en = core.regfile.rs2_en,
+                rs2_addr = core.regfile.rs2,
+                rs2_data = core.regfile.rs2_dout,
+            )
         )
         ## Instruction read
         self.bus_ir_driver = BusSourceDriver("bus_ir",BusReadTransaction,self.bus_bfm.ir_send_response,self.bus_bfm.ir_drive_ready)

@@ -5,7 +5,7 @@ from cocotb.triggers import RisingEdge, ReadOnly, Combine
 from cocotb_bus.monitors import Monitor
 from cocotb.log import SimLog
 
-from cocotb_utils import anext
+from cocotb_utils import Bfm, anext
 from riscv_constants import abi_reg_map, reg_abi_map
 
 @dataclasses.dataclass
@@ -59,57 +59,48 @@ class RegFileReadTransaction:
         data2 = f'0x{self.data2:X}' if self.data2 is not None else None
         return f'RegFileReadTransaction(reg1={self.reg1_name}, data1={data1}, reg2={self.reg2_name}, data1={data2})'
                 
-class RegFileBfm:
-    def __init__(self,
-            clock,
-            reset,
-            rd_en,
-            rd_addr,
-            rd_data,
-            rs1_en,
-            rs1_addr,
-            rs1_data,
-            rs2_en,
-            rs2_addr,
-            rs2_data,
-        ):
+class RegFileBfm(Bfm):
+    """ bus: [
+        rd_en
+        rd_addr
+        rd_data
+        rs1_en
+        rs1_addr
+        rs1_data
+        rs2_en
+        rs2_addr
+        rs2_data
+    ]
+    """
+    def __init__(self, signals, clock, reset=None, reset_n=None, period=10, period_unit="ns"):
         self.clock = clock
-        self.reset = reset
-        self.rd_en = rd_en
-        self.rd_addr = rd_addr
-        self.rd_data = rd_data
-        self.rs1_en = rs1_en
-        self.rs1_addr = rs1_addr
-        self.rs1_data = rs1_data
-        self.rs2_en = rs2_en
-        self.rs2_addr = rs2_addr
-        self.rs2_data = rs2_data
+        super().__init__(signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
     async def recv_rd(self):
         while(True):
             await RisingEdge(self.clock)
             await ReadOnly()
-            if self.rd_en.value:
+            if self.bus.rd_en.value:
                 yield dict(
-                    addr = int(self.rd_addr.value),
-                    data = int(self.rd_data.value)
+                    addr = int(self.bus.rd_addr.value),
+                    data = int(self.bus.rd_data.value)
                 )
     async def recv_rs(self):
         while(True):
             buf = {}
             await RisingEdge(self.clock)
             await ReadOnly()
-            en1 = self.rs1_en.value
-            en2 = self.rs2_en.value
+            en1 = self.bus.rs1_en.value
+            en2 = self.bus.rs2_en.value
             if (not en1) and (not en2):
                 continue
             await RisingEdge(self.clock)
             await ReadOnly()
             if en1:
-                buf['addr'] = int(self.rs1_addr.value)
-                buf['data'] = int(self.rs1_data.value)
+                buf['addr'] = int(self.bus.rs1_addr.value)
+                buf['data'] = int(self.bus.rs1_data.value)
             if en2:
-                buf['addr2'] = int(self.rs2_addr.value)
-                buf['data2'] = int(self.rs2_data.value)
+                buf['addr2'] = int(self.bus.rs2_addr.value)
+                buf['data2'] = int(self.bus.rs2_data.value)
             yield buf
 
 class RegFileWriteMonitor(Monitor):
