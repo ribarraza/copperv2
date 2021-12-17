@@ -7,7 +7,7 @@ from cocotb_bus.monitors import Monitor
 from cocotb_bus.drivers import Driver
 from cocotb.log import SimLog
 
-from cocotb_utils import Bfm, anext
+from cocotb_utils import Bfm, SimpleBfm, anext
 
 @dataclasses.dataclass
 class BusReadTransaction:
@@ -84,13 +84,11 @@ class BusWriteTransaction:
         response = f'0x{self.response:X}' if self.response is not None else None
         return f'{self.__class__.__name__}(bus_name={self.bus_name}, addr={addr}, data={data}, strobe={strobe}, response={response})'
 
-class ReadyValidBfm(Bfm):
-    """ bus: [ready,valid]
-        payload: {...}"""
-    def __init__(self, signals, payload, clock, reset=None, reset_n=None, period=10, period_unit="ns",init_valid=False):
-        self.clock = clock
+class ReadyValidBfm(SimpleBfm):
+    Signals = SimpleBfm.make_signals("ReadyValidBfmSignals",["ready","valid"])
+    def __init__(self, clock, signals, payload, reset=None, reset_n=None, period=10, period_unit="ns",init_valid=False):
         self.payload = payload
-        Bfm.__init__(self,signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
+        super().__init__(signals=signals, period=period, period_unit=period_unit, reset=reset, reset_n=reset_n, clock=clock)
         if init_valid:
             self.bus.valid.setimmediatevalue(0)
     async def recv_payload(self):
@@ -98,9 +96,11 @@ class ReadyValidBfm(Bfm):
             await RisingEdge(self.clock)
             await ReadOnly()
             if self.in_reset:
+                self.log.debug(f"recv_payload in_reset true, continue... {self.bus.ready.name}")
                 continue
             if self.bus.ready.value and self.bus.valid.value:
                 actual_payload = {k:int(p.value) for k,p in self.payload.items()}
+                self.log.debug(f"Receiving payload {self.bus.ready.name} {actual_payload}")
                 yield actual_payload
     async def send_payload(self,**kwargs):
         self.log.debug(f"Send payload {self.bus.ready.name} {kwargs}")
@@ -120,33 +120,19 @@ class ReadyValidBfm(Bfm):
         await RisingEdge(self.clock)
         self.bus.valid.value = value
 
-class CoppervBusBfm(Bfm):
-    """ bus: [
-            ir_addr_valid
-            ir_addr_ready
-            ir_addr
-            ir_data_valid
-            ir_data_ready
-            ir_data
-            dr_addr_valid
-            dr_addr_ready
-            dr_addr
-            dr_data_valid
-            dr_data_ready
-            dr_data
-            dw_data_addr_ready
-            dw_data_addr_valid
-            dw_data
-            dw_addr
-            dw_strobe
-            dw_resp_ready
-            dw_resp_valid
-            dw_resp
-        ]
-    """
-    def __init__(self, signals, clock, reset=None, reset_n=None, period=10, period_unit="ns"):
+class CoppervBusBfm(SimpleBfm):
+    Signals = SimpleBfm.make_signals("CoppervBusBfm",[
+        "ir_addr_valid", "ir_addr_ready", "ir_addr",
+        "ir_data_valid", "ir_data_ready", "ir_data",
+        "dr_addr_valid", "dr_addr_ready", "dr_addr",
+        "dr_data_valid", "dr_data_ready", "dr_data",
+        "dw_data_addr_ready", "dw_data_addr_valid", 
+        "dw_data", "dw_addr", "dw_strobe",
+        "dw_resp_ready", "dw_resp_valid", "dw_resp",
+    ])
+    def __init__(self, clock, entity = None, signals = None, reset=None, reset_n=None, period=10, period_unit="ns"):
         self.clock = clock
-        super().__init__(signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
+        super().__init__(clock, signals=signals, entity=entity, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
         channels = dict(
             ir_addr=(dict(addr=self.bus.ir_addr),False),
             ir_data=(dict(data=self.bus.ir_data),True),
@@ -161,11 +147,11 @@ class CoppervBusBfm(Bfm):
         )
         for ch_name,temp in channels.items():
             payload,init_valid=temp
-            signals = dict(
+            signals = ReadyValidBfm.Signals(
                 ready = getattr(self.bus,f"{ch_name}_ready"),
                 valid = getattr(self.bus,f"{ch_name}_valid"),
             )
-            bfm = ReadyValidBfm(signals,payload,clock,reset_n=self.bus.reset_n,init_valid=init_valid)
+            bfm = ReadyValidBfm(clock,signals,payload,reset_n=reset_n,init_valid=init_valid)
             setattr(self,f"{ch_name}_bfm",bfm)
     async def ir_send_response(self,**kwargs):
         await self.ir_data_bfm.send_payload(**kwargs)

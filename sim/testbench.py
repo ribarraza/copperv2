@@ -65,42 +65,22 @@ class Testbench():
         self.bus_bfm = CoppervBusBfm(
             clock = self.clock,
             reset_n = self.reset_n,
-            signals = dict(
-                ir_addr_valid = self.dut.ir_addr_valid,
-                ir_addr_ready = self.dut.ir_addr_ready,
-                ir_addr = self.dut.ir_addr,
-                ir_data_valid = self.dut.ir_data_valid,
-                ir_data_ready = self.dut.ir_data_ready,
-                ir_data = self.dut.ir_data,
-                dr_addr_valid = self.dut.dr_addr_valid,
-                dr_addr_ready = self.dut.dr_addr_ready,
-                dr_addr = self.dut.dr_addr,
-                dr_data_valid = self.dut.dr_data_valid,
-                dr_data_ready = self.dut.dr_data_ready,
-                dr_data = self.dut.dr_data,
-                dw_data_addr_ready = self.dut.dw_data_addr_ready,
-                dw_data_addr_valid = self.dut.dw_data_addr_valid,
-                dw_data = self.dut.dw_data,
-                dw_addr = self.dut.dw_addr,
-                dw_strobe = self.dut.dw_strobe,
-                dw_resp_ready = self.dut.dw_resp_ready,
-                dw_resp_valid = self.dut.dw_resp_valid,
-                dw_resp = self.dut.dw_resp,
-            )
+            entity = self.dut
         )
         regfile_bfm = RegFileBfm(
             clock = self.clock,
             reset_n = self.reset_n,
-            signals = dict(
-                rd_en = core.regfile.rd_en,
-                rd_addr = core.regfile.rd,
-                rd_data = core.regfile.rd_din,
-                rs1_en = core.regfile.rs1_en,
-                rs1_addr = core.regfile.rs1,
-                rs1_data = core.regfile.rs1_dout,
-                rs2_en = core.regfile.rs2_en,
-                rs2_addr = core.regfile.rs2,
-                rs2_data = core.regfile.rs2_dout,
+            entity = core.regfile,
+            signals = RegFileBfm.Signals(
+                rd_en = "rd_en",
+                rd_addr = "rd",
+                rd_data = "rd_din",
+                rs1_en = "rs1_en",
+                rs1_addr = "rs1",
+                rs1_data = "rs1_dout",
+                rs2_en = "rs2_en",
+                rs2_addr = "rs2",
+                rs2_data = "rs2_dout",
             )
         )
         ## Instruction read

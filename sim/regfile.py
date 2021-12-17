@@ -5,7 +5,7 @@ from cocotb.triggers import RisingEdge, ReadOnly, Combine
 from cocotb_bus.monitors import Monitor
 from cocotb.log import SimLog
 
-from cocotb_utils import Bfm, anext
+from cocotb_utils import Bfm, SimpleBfm, anext
 from riscv_constants import abi_reg_map, reg_abi_map
 
 @dataclasses.dataclass
@@ -59,22 +59,21 @@ class RegFileReadTransaction:
         data2 = f'0x{self.data2:X}' if self.data2 is not None else None
         return f'RegFileReadTransaction(reg1={self.reg1_name}, data1={data1}, reg2={self.reg2_name}, data1={data2})'
                 
-class RegFileBfm(Bfm):
-    """ bus: [
-        rd_en
-        rd_addr
-        rd_data
-        rs1_en
-        rs1_addr
-        rs1_data
-        rs2_en
-        rs2_addr
-        rs2_data
-    ]
-    """
-    def __init__(self, signals, clock, reset=None, reset_n=None, period=10, period_unit="ns"):
+class RegFileBfm(SimpleBfm):
+    Signals = SimpleBfm.make_signals("RegFileBfmSignals",[
+        "rd_en",
+        "rd_addr",
+        "rd_data",
+        "rs1_en",
+        "rs1_addr",
+        "rs1_data",
+        "rs2_en",
+        "rs2_addr",
+        "rs2_data",
+    ])
+    def __init__(self, clock, entity=None,signals=None, reset=None, reset_n=None, period=10, period_unit="ns"):
         self.clock = clock
-        super().__init__(signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
+        super().__init__(clock, entity=entity, signals=signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
     async def recv_rd(self):
         while(True):
             await RisingEdge(self.clock)
