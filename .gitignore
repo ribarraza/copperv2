@@ -1,6 +1,5 @@
-.coursier/
-
 ### Project Specific stuff
+.coursier/
 *.debug
 *.E
 work/
@@ -10,6 +9,7 @@ __pycache__/
 metals.sbt
 .ivy2/
 .venv/
+.pytest_cache/
 
 ### XilinxISE template
 # intermediate build files
