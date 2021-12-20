@@ -127,16 +127,17 @@ async def run_wishbone_bfm_read_test(dut):
     addr = 101
     bfm = WishboneBfm(dut.clock,entity=dut,reset=dut.reset)
     bfm.start_clock()
-    bfm.init_sink()
-    bfm.init_source()
+    bfm.sink_init()
+    bfm.source_init()
     await bfm.reset()
-    send_task = cocotb.start_soon(bfm.read(addr))
-    received = await anext(bfm.receive())
+    send_task = cocotb.start_soon(bfm.source_read(addr))
+    received = await anext(bfm.sink_receive())
     assert received['addr'] == addr
-    await bfm.reply(data)
-    reply = await Join(send_task)
+    await bfm.sink_reply(data)
+    reply = await anext(bfm.source_receive())
     assert reply['data'] == data
     assert reply['ack'] == True
+    await Join(send_task)
     await RisingEdge(dut.clock)
 
 @cocotb.test(timeout_time=10,timeout_unit="us")
@@ -148,17 +149,18 @@ async def run_wishbone_bfm_write_test(dut):
     sel = 1
     bfm = WishboneBfm(dut.clock,entity=dut,reset=dut.reset)
     bfm.start_clock()
-    bfm.init_sink()
-    bfm.init_source()
+    bfm.sink_init()
+    bfm.source_init()
     await bfm.reset()
-    send_task = cocotb.start_soon(bfm.write(data,addr,sel))
-    received = await anext(bfm.receive())
+    send_task = cocotb.start_soon(bfm.source_write(data,addr,sel))
+    received = await anext(bfm.sink_receive())
     assert received['data'] == data
     assert received['addr'] == addr
     assert received['sel'] == sel
-    await bfm.reply(data)
-    reply = await Join(send_task)
+    await bfm.sink_reply(data)
+    reply = await anext(bfm.source_receive())
     assert reply['ack'] == True
+    await Join(send_task)
     await RisingEdge(dut.clock)
 
 def test_wishbone_read(wishbone_rtl):
