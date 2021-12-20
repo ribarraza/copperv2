@@ -31,11 +31,11 @@ class WishboneAdapter extends MultiIOModule with RequireSyncReset {
   cpu.ir.data.bits := 0.B
   cpu.dr.data.bits := 0.B
   dbus.sel := 0.B
-  ibus.dat_write := 0.B
+  ibus.datwr := 0.B
   cpu.dr.addr.ready := 0.B
   ibus.adr := 0.B
   cpu.dw.req.ready := 0.B
-  dbus.dat_write := 0.B
+  dbus.datwr := 0.B
   dbus.we := 0.B
   dbus.adr := 0.B
   cpu.ir.addr.ready := 0.B

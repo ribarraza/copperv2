@@ -19,9 +19,14 @@ class Bfm:
             if signals is None:
                 handle = field.name
             else:
-                handle = getattr(signals,field.name)
+                handle = getattr(signals,field.name,None)
             if isinstance(handle,str):
-                handle = getattr(entity,handle)
+                handle = getattr(entity,handle,None)
+            if handle is None:
+                if field.default is None:
+                    continue
+                else:
+                    raise ValueError(f"Signal not found {handle}")
             actual_signals[field.name] = handle
         self.bus = self.Signals(**actual_signals)
     @staticmethod

@@ -31,9 +31,9 @@ def ready_valid_rtl():
     rtl.write_text(dedent("""
     `timescale 1ns/1ps
     module top(
-        input clock,
-        input reset,
-        input ready,
+        output clock,
+        output reset,
+        output ready,
         output valid,
         output [7:0] data
     );
@@ -49,15 +49,16 @@ def wishbone_rtl():
     rtl.write_text(dedent("""
     `timescale 1ns/1ps
     module top(
-        input clock,
-        input reset,
-        input [7:0] adr,
-        input [7:0] datwr,
-        input [7:0] datrd,
-        input we,
-        input cyc,
-        input stb,
-        input ack
+        output clock,
+        output reset,
+        output [7:0] adr,
+        output [7:0] datwr,
+        output [7:0] datrd,
+        output we,
+        output cyc,
+        output stb,
+        output ack,
+        output sel
     );
     initial #1000;
     endmodule
@@ -144,15 +145,17 @@ async def run_wishbone_bfm_write_test(dut):
     SimLog("bfm").setLevel(logging.DEBUG)
     data = 123
     addr = 101
+    sel = 1
     bfm = WishboneBfm(dut.clock,entity=dut,reset=dut.reset)
     bfm.start_clock()
     bfm.init_sink()
     bfm.init_source()
     await bfm.reset()
-    send_task = cocotb.start_soon(bfm.write(data,addr))
+    send_task = cocotb.start_soon(bfm.write(data,addr,sel))
     received = await anext(bfm.receive())
     assert received['data'] == data
     assert received['addr'] == addr
+    assert received['sel'] == sel
     await bfm.reply(data)
     reply = await Join(send_task)
     assert reply['ack'] == True

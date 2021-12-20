@@ -6,7 +6,8 @@ class WishboneBfm(SimpleBfm):
     Signals = SimpleBfm.make_signals("WishboneBfm",[
         "adr", "datwr", "datrd",
         "we", "cyc", "stb", "ack",
-    ])
+    ],optional=["sel"])
+    has_sel = property(lambda self: self.bus.sel is not None)
     def __init__(self, clock, entity = None, signals = None, reset=None, reset_n=None, period=10, period_unit="ns"):
         super().__init__(clock, signals=signals, entity=entity, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
     def init_source(self):
@@ -15,6 +16,8 @@ class WishboneBfm(SimpleBfm):
         self.bus.we.setimmediatevalue(0)
         self.bus.adr.setimmediatevalue(0)
         self.bus.datwr.setimmediatevalue(0)
+        if self.has_sel:
+            self.bus.sel.setimmediatevalue(0)
     def init_sink(self):
         self.bus.ack.setimmediatevalue(0)
         self.bus.datrd.setimmediatevalue(0)
@@ -22,20 +25,22 @@ class WishboneBfm(SimpleBfm):
         await RisingEdge(self.clock)
         self.bus.cyc.value = 1
         self.bus.stb.value = 1
-        self.bus.adr.value = addr
         self.bus.we.value = 0
+        self.bus.adr.value = addr
         while True:
             await RisingEdge(self.clock)
             await ReadOnly()
             if Logic(self.bus.ack.value.binstr) == Logic(1):
                 return dict(data=int(self.bus.datrd.value),ack=True)
-    async def write(self,data,addr):
+    async def write(self,data,addr,sel=None):
         await RisingEdge(self.clock)
         self.bus.cyc.value = 1
         self.bus.stb.value = 1
+        self.bus.we.value = 1
         self.bus.datwr.value = data
         self.bus.adr.value = addr
-        self.bus.we.value = 1
+        if self.has_sel:
+            self.bus.sel.value = sel
         while True:
             await RisingEdge(self.clock)
             await ReadOnly()
@@ -54,6 +59,8 @@ class WishboneBfm(SimpleBfm):
                 received = dict(addr=int(self.bus.adr.value))
                 if Logic(self.bus.we.value.binstr) == Logic(1):
                     received['data'] = int(self.bus.datwr.value)
+                    if self.has_sel:
+                        received['sel'] = int(self.bus.sel.value)
                 self.log.debug(f"Received {received}")
                 yield received
     async def reply(self,data=None):
