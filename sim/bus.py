@@ -104,19 +104,19 @@ class ReadyValidBfm(SimpleBfm):
                 yield actual_payload
     async def send_payload(self,**kwargs):
         self.log.debug(f"Send payload {self.bus.ready.name} {kwargs}")
-        await self.wait_for_signal(self.bus.ready)
-        await RisingEdge(self.clock)
+        await self.wait_for_signal(self.bus.ready,1)
         self.bus.valid.value = 1
         for name,payload_signal in self.payload.items():
             payload_signal.value = int(kwargs[name])
         await RisingEdge(self.clock)
+        await NextTimeStep()
         self.bus.valid.value = 0
     async def drive_ready(self,value):
-        self.log.debug(f"Drive ready {self.bus.ready.name} {value}")
+        self.log.debug(f"Drive ready {self.bus.ready._name} {value}")
         await RisingEdge(self.clock)
         self.bus.ready.value = value
     async def drive_valid(self,value):
-        self.log.debug(f"Drive valid {self.bus.valid.name} {value}")
+        self.log.debug(f"Drive valid {self.bus.valid._name} {value}")
         await RisingEdge(self.clock)
         self.bus.valid.value = value
 

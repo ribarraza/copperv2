@@ -77,4 +77,6 @@ class WishboneBfm(SimpleBfm):
         self.bus.ack.value = 1
         if self.bus.we.value.binstr == "0":
             self.bus.datrd.value = data
+        await self.wait_for_signal(self.bus.stb,0)
+        self.bus.ack.value = 0
 

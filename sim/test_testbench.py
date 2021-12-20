@@ -73,10 +73,11 @@ def fake_signals():
 @cocotb.test(timeout_time=10,timeout_unit="us")
 async def run_ready_valid_bfm_test(dut):
     """ ready/valid BFM test """
+    SimLog("bfm").setLevel(logging.DEBUG)
     reference = 123
     signals = ReadyValidBfm.Signals(ready = dut.ready, valid = dut.valid)
     payload = dict(data = dut.data)
-    bfm = ReadyValidBfm(dut.clock,signals,payload)
+    bfm = ReadyValidBfm(dut.clock,signals,payload,reset=dut.reset)
     bfm.start_clock()
     await bfm.reset()
     await bfm.drive_ready(1)
@@ -133,11 +134,12 @@ async def run_wishbone_bfm_read_test(dut):
     send_task = cocotb.start_soon(bfm.source_read(addr))
     received = await anext(bfm.sink_receive())
     assert received['addr'] == addr
-    await bfm.sink_reply(data)
+    reply_task = cocotb.start_soon(bfm.sink_reply(data))
     reply = await anext(bfm.source_receive())
     assert reply['data'] == data
     assert reply['ack'] == True
     await Join(send_task)
+    await Join(reply_task)
     await RisingEdge(dut.clock)
 
 @cocotb.test(timeout_time=10,timeout_unit="us")
@@ -157,10 +159,11 @@ async def run_wishbone_bfm_write_test(dut):
     assert received['data'] == data
     assert received['addr'] == addr
     assert received['sel'] == sel
-    await bfm.sink_reply(data)
+    reply_task = cocotb.start_soon(bfm.sink_reply(data))
     reply = await anext(bfm.source_receive())
     assert reply['ack'] == True
     await Join(send_task)
+    await Join(reply_task)
     await RisingEdge(dut.clock)
 
 def test_wishbone_read(wishbone_rtl):

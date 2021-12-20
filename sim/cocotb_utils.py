@@ -4,7 +4,6 @@ import subprocess
 import cocotb
 from cocotb.log import SimLog
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, FallingEdge
-from cocotb.types import Logic
 from cocotb.clock import Clock
 
 import typing
@@ -37,18 +36,6 @@ class Bfm:
         fields.extend(args)
         fields.extend([(key,typing.Any,dataclasses.field(default=None)) for key in optional])
         return dataclasses.make_dataclass(name,fields,namespace={"__contains__":contains})
-    async def wait_for_signal(self,signal):
-        await ReadOnly()
-        while Logic(signal.value.binstr) != Logic(1):
-            await RisingEdge(signal)
-            await ReadOnly()
-        await NextTimeStep()
-    async def wait_for_nsignal(self,signal):
-        await ReadOnly()
-        while Logic(signal.value.binstr) != Logic(0):
-            await FallingEdge(signal)
-            await ReadOnly()
-        await NextTimeStep()
 
 class SimpleBfm(Bfm):
     def __init__(self,clock,reset=None,reset_n=None,entity=None,signals=None,period=10,period_unit="ns"):
@@ -79,6 +66,12 @@ class SimpleBfm(Bfm):
             self._reset_n.value = 0
             await RisingEdge(self.clock)
             self._reset_n.value = 1
+    async def wait_for_signal(self,signal,value):
+        await ReadOnly()
+        while self.in_reset or signal.value.binstr != str(value):
+            await RisingEdge(self.clock)
+            await ReadOnly()
+        await NextTimeStep()
 
 def anext(async_generator):
     return async_generator.__anext__()
