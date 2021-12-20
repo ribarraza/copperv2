@@ -72,7 +72,6 @@ class RegFileBfm(SimpleBfm):
         "rs2_data",
     ])
     def __init__(self, clock, entity=None,signals=None, reset=None, reset_n=None, period=10, period_unit="ns"):
-        self.clock = clock
         super().__init__(clock, entity=entity, signals=signals, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
     async def recv_rd(self):
         while(True):

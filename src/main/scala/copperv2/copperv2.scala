@@ -242,6 +242,7 @@ class copperv2 extends RawModule {
 
 object Copperv2Driver extends App {
   val verilog_args = Array("--target-dir", "work/rtl") ++ args
-  (new ChiselStage).emitVerilog(new copperv2.copperv2, verilog_args ++ Array("-o","copperv2_rtl.v"))
+  (new ChiselStage).emitVerilog(new copperv2.copperv2, verilog_args ++ Array("-o","copperv2.v"))
 //  (new ChiselStage).execute(Array("--emit-modules", "verilog"),Seq(ChiselGeneratorAnnotation(() => new copperv2.copperv2)))
+  (new ChiselStage).emitVerilog(new copperv2.WishboneAdapter, verilog_args ++ Array("-o","wb_adapter.v"))
 }

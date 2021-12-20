@@ -56,7 +56,6 @@ class SimpleBfm(Bfm):
     @property
     def in_reset(self):
         """Boolean flag showing whether the bus is in reset state or not."""
-        self.log.debug(f"{type(self).__qualname__} in_reset {self._reset=} {self._reset_n=}")
         if self._reset is not None:
             return bool(self._reset.value.integer)
         if self._reset_n is not None:
