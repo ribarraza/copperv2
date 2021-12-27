@@ -48,3 +48,9 @@ def test_riscv(parameters):
         testcase = "run_riscv_test",
     )
 
+def test_wishbone_adapter():
+    run(
+        **common_run_opts,
+        sim_build=f"work/sim/test_wishbone_adapter",
+        testcase = "run_wishbone_adapter_test"
+    )

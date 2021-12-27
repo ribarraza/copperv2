@@ -82,3 +82,8 @@ async def run_riscv_test(dut):
     tb.bus_bfm.start_clock()
     await tb.bus_bfm.reset()
     await tb.end_test.wait()
+
+@cocotb.test(timeout_time=100,timeout_unit="us")
+async def run_wishbone_adapter_test(dut):
+    """ Wishbone adapter tests """
+    pass
