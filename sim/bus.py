@@ -130,8 +130,8 @@ class CoppervBusBfm(SimpleBfm):
         "dw_data", "dw_addr", "dw_strobe",
         "dw_resp_ready", "dw_resp_valid", "dw_resp",
     ])
-    def __init__(self, clock, entity = None, signals = None, reset=None, reset_n=None, period=10, period_unit="ns"):
-        super().__init__(clock, signals=signals, entity=entity, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
+    def __init__(self, clock, entity = None, signals = None, reset=None, reset_n=None, period=10, period_unit="ns", prefix=None):
+        super().__init__(clock, signals=signals, entity=entity, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit, prefix=prefix)
         channels = dict(
             ir_addr=(dict(addr=self.bus.ir_addr),False),
             ir_data=(dict(data=self.bus.ir_data),True),

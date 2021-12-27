@@ -7,7 +7,7 @@ all: work/sim/result.xml
 
 .PHONY: clean
 clean:
-	rm -rf work/rtl work/sim work/logs
+	rm -rf work/rtl work/sim work/logs out/
 
 .venv: requirements.txt
 	$(PYTHON) -m venv .venv

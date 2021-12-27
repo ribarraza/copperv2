@@ -20,7 +20,7 @@ common_run_opts = dict(
         rtl_v1_dir/"idecoder.v",
     ],
     includes=[rtl_v1_dir/'include'],
-    toplevel="copperv2",
+    toplevel="Copperv2",
     module="cocotb_copperv2",
     waves = True,
 )

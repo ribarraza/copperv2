@@ -11,21 +11,24 @@ import dataclasses
 
 class Bfm:
     Signals = None
-    def __init__(self,entity=None,signals=None):
+    def __init__(self,entity=None,signals=None,prefix=None):
         self.log = SimLog(f"bfm.{type(self).__qualname__}")
         actual_signals = {}
         for field in dataclasses.fields(self.Signals):
-            if signals is None:
-                handle = field.name
-            else:
-                handle = getattr(signals,field.name,None)
+            signal_name = field.name
+            if prefix is not None:
+                signal_name = prefix + signal_name
+            _object = entity
+            if signals is not None:
+                _object = signals
+            handle = getattr(_object,signal_name,None)
             if isinstance(handle,str):
-                handle = getattr(entity,handle,None)
+                signal_name = handle
+                handle = getattr(entity,signal_name,None)
             if handle is None:
                 if field.default is None:
                     continue
-                else:
-                    raise ValueError(f"Signal not found {handle}")
+                raise ValueError(f"Signal not found {signal_name}")
             actual_signals[field.name] = handle
         self.bus = self.Signals(**actual_signals)
     @staticmethod
@@ -38,13 +41,13 @@ class Bfm:
         return dataclasses.make_dataclass(name,fields,namespace={"__contains__":contains})
 
 class SimpleBfm(Bfm):
-    def __init__(self,clock,reset=None,reset_n=None,entity=None,signals=None,period=10,period_unit="ns"):
+    def __init__(self,clock,reset=None,reset_n=None,entity=None,signals=None,period=10,period_unit="ns",prefix=None):
         self.clock = clock
         self._reset = reset
         self._reset_n = reset_n
         self.period = period
         self.period_unit = period_unit
-        super().__init__(entity=entity,signals=signals)
+        super().__init__(entity=entity,signals=signals,prefix=prefix)
     @property
     def in_reset(self):
         """Boolean flag showing whether the bus is in reset state or not."""

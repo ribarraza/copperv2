@@ -16,14 +16,12 @@ object copperv2 extends SbtModule { m =>
     "-deprecation",
     "-feature",
     "-Xcheckinit",
-    // Enables autoclonetype2 in 3.4.x (on by default in 3.5)
-    "-P:chiselplugin:useBundlePlugin"
   )
   override def ivyDeps = Agg(
-    ivy"edu.berkeley.cs::chisel3:3.4.3",
+    ivy"edu.berkeley.cs::chisel3:3.5.0-RC2",
   )
   override def scalacPluginIvyDeps = Agg(
-    ivy"edu.berkeley.cs:::chisel3-plugin:3.4.3",
+    ivy"edu.berkeley.cs:::chisel3-plugin:3.5.0-RC2",
     ivy"org.scalamacros:::paradise:2.1.1"
   )
 //  object test extends Tests with ScalaTest {

@@ -30,10 +30,7 @@ class Testbench():
         self.dut = dut
         self.clock = self.dut.clk
         self.reset_n = self.dut.rst
-        if cocotb.plusargs.get('dut_copperv1',False):
-            core = self.dut
-        else:
-            core = self.dut.core
+        core = self.dut
         self.reset_n.setimmediatevalue(0)
         self.pass_fail_address = pass_fail_address
         self.pass_fail_values = pass_fail_values
@@ -62,10 +59,14 @@ class Testbench():
         #self.log.debug(f"Data memory: {data_memory}")
         #self.log.debug(f"Memory: {self.memory}")
         ## Bus functional models
+        prefix = None
+        if not cocotb.plusargs.get('dut_copperv1',False):
+            prefix = "bus_"
         self.bus_bfm = CoppervBusBfm(
             clock = self.clock,
             reset_n = self.reset_n,
-            entity = self.dut
+            entity = self.dut,
+            prefix = prefix
         )
         regfile_bfm = RegFileBfm(
             clock = self.clock,
