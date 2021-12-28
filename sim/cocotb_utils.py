@@ -56,7 +56,7 @@ class SimpleBfm(Bfm):
             self.log.debug(f"in_reset: {self._reset._name}")
             return bool(self._reset.value.integer)
         if self._reset_n is not None:
-            self.log.debug(f"in_reset: {self._reset._name}")
+            self.log.debug(f"in_reset: {self._reset_n._name}")
             return not bool(self._reset_n.value.integer)
         return False
     def start_clock(self):

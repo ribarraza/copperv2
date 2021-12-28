@@ -25,11 +25,11 @@ class BusSeqItem(uvm.uvm_sequence_item):
     def __str__(self):
         res = f'{self.get_name()} : '
         if self.data is not None:
-            res += f'data: 0x{self.data:X} '
+            res += f'data: 0x{self.data:0{self.data_width//4}X} '
         if self.addr is not None:
-            res += f'addr: 0x{self.addr:X} '
+            res += f'addr: 0x{self.addr:0{self.addr_width//4}X} '
         if self.strobe is not None:
-            res += f'strobe: 0b{self.strobe:b}'
+            res += f'strobe: 0b{self.strobe:0{self.strobe_width}b}'
         return res
     def randomize(self):
         self.addr = random.randint(0, (2**self.addr_width)-1)
