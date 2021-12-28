@@ -96,14 +96,14 @@ class ReadyValidBfm(SimpleBfm):
             await RisingEdge(self.clock)
             await ReadOnly()
             if self.in_reset:
-                self.log.debug(f"recv_payload in_reset true, continue... {self.bus.ready.name}")
+                self.log.debug(f"recv_payload in_reset true, continue... {self.bus.ready._name}")
                 continue
             if self.bus.ready.value and self.bus.valid.value:
                 actual_payload = {k:int(p.value) for k,p in self.payload.items()}
-                self.log.debug(f"Receiving payload {self.bus.ready.name} {actual_payload}")
+                self.log.debug(f"Receiving payload {self.bus.ready._name} {actual_payload}")
                 yield actual_payload
     async def send_payload(self,**kwargs):
-        self.log.debug(f"Send payload {self.bus.ready.name} {kwargs}")
+        self.log.debug(f"Send payload {self.bus.ready._name} {kwargs}")
         await self.wait_for_signal(self.bus.ready,1)
         self.bus.valid.value = 1
         for name,payload_signal in self.payload.items():
@@ -119,6 +119,73 @@ class ReadyValidBfm(SimpleBfm):
         self.log.debug(f"Drive valid {self.bus.valid._name} {value}")
         await RisingEdge(self.clock)
         self.bus.valid.value = value
+
+class _ReadyValidBfm(SimpleBfm):
+    Signals = SimpleBfm.make_signals("_ReadyValidBfm",["ready","valid"])
+    def __init__(self, clock, signals, payload, reset=None, reset_n=None, period=10, period_unit="ns"):
+        self.payload = payload
+        super().__init__(signals=signals, period=period, period_unit=period_unit, reset=reset, reset_n=reset_n, clock=clock)
+    async def receive(self):
+        while(True):
+            await RisingEdge(self.clock)
+            await ReadOnly()
+            if self.in_reset:
+                self.log.debug(f"recv_payload in_reset true, continue... {self.bus.ready._name}")
+                continue
+            if self.bus.ready.value and self.bus.valid.value:
+                actual_payload = {k:int(p.value) for k,p in self.payload.items()}
+                self.log.debug(f"Receiving payload {self.bus.ready._name} {actual_payload}")
+                yield actual_payload
+
+class ReadyValidSourceBfm(_ReadyValidBfm):
+    def __init__(self, clock, signals, payload, reset=None, reset_n=None, period=10, period_unit="ns"):
+        super().__init__(signals=signals, payload=payload, period=period, period_unit=period_unit, reset=reset, reset_n=reset_n, clock=clock)
+        self.bus.valid.setimmediatevalue(0)
+    async def send(self,**kwargs):
+        self.log.debug(f"Send payload {self.bus.ready._name} {kwargs}")
+        await self.wait_for_signal(self.bus.ready,1)
+        self.bus.valid.value = 1
+        for name,payload_signal in self.payload.items():
+            payload_signal.value = int(kwargs[name])
+        await RisingEdge(self.clock)
+        await NextTimeStep()
+        self.bus.valid.value = 0
+
+class ReadyValidSinkBfm(_ReadyValidBfm):
+    def __init__(self, clock, signals, payload, reset=None, reset_n=None, period=10, period_unit="ns"):
+        super().__init__(signals=signals, payload=payload, period=period, period_unit=period_unit, reset=reset, reset_n=reset_n, clock=clock)
+    async def drive_ready(self,value):
+        self.log.debug(f"Drive ready {self.bus.ready._name} {value}")
+        await RisingEdge(self.clock)
+        self.bus.ready.value = value
+
+class CoppervBusReadSourceBfm(SimpleBfm):
+    Signals = SimpleBfm.make_signals("CoppervBusReadBfm",[
+        "addr_ready", "addr_valid", "addr_bits",
+        "data_ready", "data_valid", "data_bits",
+    ])
+    def __init__(self, clock, entity = None, signals = None, reset=None, reset_n=None, period=10, period_unit="ns", prefix=None):
+        super().__init__(clock, signals=signals, entity=entity, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit, prefix=prefix)
+        addr_signals = ReadyValidSourceBfm.Signals(ready=self.bus.addr_ready,valid=self.bus.addr_valid)
+        addr_payload = dict(addr=self.bus.addr_bits)
+        data_signals = ReadyValidSinkBfm.Signals(ready=self.bus.data_ready,valid=self.bus.data_valid)
+        data_payload = dict(data=self.bus.data_bits)
+        self.addr = ReadyValidSourceBfm(clock,addr_signals,addr_payload,reset_n=reset_n,reset=reset)
+        self.data = ReadyValidSinkBfm(clock,data_signals,data_payload,reset_n=reset_n,reset=reset)
+
+class CoppervBusWriteSourceBfm(SimpleBfm):
+    Signals = SimpleBfm.make_signals("CoppervBusWriteBfm",[
+        "req_ready", "req_valid", "req_bits_data", "req_bits_addr", "req_bits_strobe",
+        "resp_ready", "resp_valid", "resp_bits",
+    ])
+    def __init__(self, clock, entity = None, signals = None, reset=None, reset_n=None, period=10, period_unit="ns", prefix=None):
+        super().__init__(clock, signals=signals, entity=entity, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit, prefix=prefix)
+        req_signals = ReadyValidSourceBfm.Signals(ready=self.bus.req_ready,valid=self.bus.req_valid)
+        req_payload=dict(data=self.bus.req_bits_data,addr=self.bus.req_bits_addr,strobe=self.bus.req_bits_strobe)
+        resp_signals = ReadyValidSinkBfm.Signals(ready=self.bus.resp_ready,valid=self.bus.resp_valid)
+        resp_payload = dict(resp=self.bus.resp_bits)
+        self.req = ReadyValidSourceBfm(clock,req_signals,req_payload,reset_n=reset_n,reset=reset)
+        self.resp = ReadyValidSinkBfm(clock,resp_signals,resp_payload,reset_n=reset_n,reset=reset)
 
 class CoppervBusBfm(SimpleBfm):
     Signals = SimpleBfm.make_signals("CoppervBusBfm",[

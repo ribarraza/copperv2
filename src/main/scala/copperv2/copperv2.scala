@@ -5,6 +5,7 @@ import chisel3.util.{Decoupled,MuxLookup,Cat}
 import chisel3.stage.{ChiselStage, ChiselGeneratorAnnotation}
 import chisel3.internal.requireIsChiselType
 import chisel3.experimental.dataview._
+import chisel3.util.DecoupledIO
 
 class Copperv2Config {
   val pc_init: Int = 0
@@ -131,6 +132,11 @@ class CoppervBusSource(val addr_width: Int, val data_width: Int, val resp_width:
   }
 }
 
+class CoppervBusSink(addr_width: Int, data_width: Int, resp_width: Int) extends Bundle {
+  val ir = Flipped(new ReadChannel(addr_width=addr_width,data_width=addr_width))
+  val dr = Flipped(new ReadChannel(addr_width=addr_width,data_width=addr_width))
+  val dw = Flipped(new WriteChannel(addr_width=addr_width,data_width=addr_width,resp_width=resp_width))
+}
 
 object CoppervBusSource {
   implicit val busView = PartialDataView[VerilogCoppervBusSource, CoppervBusSource](
@@ -161,9 +167,9 @@ object CoppervBusSource {
 class Copperv2(config: Copperv2Config = new Copperv2Config()) extends RawModule {
   val clk = IO(Input(Clock()))
   val rst = IO(Input(Bool()))
-  val io = IO(new VerilogCoppervBusSource(addr_width=config.addr_width,data_width=config.data_width,resp_width=config.resp_width)).suggestName("bus")
+  val io = IO(new VerilogCoppervBusSource(config.addr_width,config.data_width,config.resp_width)).suggestName("bus")
+  val bus = io.viewAs[CoppervBusSource]
   withClockAndReset(clk,!rst) {
-    val bus = io.viewAs[CoppervBusSource]
     val control = Module(new ControlUnit)
     val idec = Module(new idecoder)
     val regfile = Module(new RegFile)
@@ -247,9 +253,18 @@ class Copperv2(config: Copperv2Config = new Copperv2Config()) extends RawModule 
   }
 }
 
+class Copperv2Core(config: Copperv2Config = new Copperv2Config()) extends Module {
+  val bus = IO(new CoppervBusSource(config.addr_width,config.data_width,config.resp_width))
+  val cpu = Module(new Copperv2(config))
+  cpu.clk := clock
+  cpu.rst := ~reset.asBool
+  cpu.bus <> bus
+}
+
 object Copperv2Driver extends App {
   val verilog_args = Array("--target-dir", "work/rtl") ++ args
   (new ChiselStage).emitVerilog(new copperv2.Copperv2, verilog_args ++ Array("-o","copperv2.v"))
 //  (new ChiselStage).execute(Array("--emit-modules", "verilog"),Seq(ChiselGeneratorAnnotation(() => new copperv2.copperv2)))
-  (new ChiselStage).emitVerilog(new copperv2.WishboneAdapter(32,32,1), verilog_args ++ Array("-o","wb_adapter.v"))
+  (new ChiselStage).emitVerilog(new lithium.WishboneAdapter(32,32,1), verilog_args ++ Array("-o","wb_adapter.v"))
+  (new ChiselStage).emitVerilog(new lithium.LithiumSoC, verilog_args ++ Array("-o","lithium_top.v"))
 }

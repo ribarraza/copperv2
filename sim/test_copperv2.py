@@ -21,7 +21,7 @@ common_run_opts = dict(
     ],
     includes=[rtl_v1_dir/'include'],
     toplevel="Copperv2",
-    module="cocotb_copperv2",
+    module="cocotb_tests",
     waves = True,
 )
 
@@ -46,11 +46,4 @@ def test_riscv(parameters):
         extra_env=parameters,
         sim_build=f"work/sim/test_riscv_{parameters['TEST_NAME']}",
         testcase = "run_riscv_test",
-    )
-
-def test_wishbone_adapter():
-    run(
-        **common_run_opts,
-        sim_build=f"work/sim/test_wishbone_adapter",
-        testcase = "run_wishbone_adapter_test"
     )

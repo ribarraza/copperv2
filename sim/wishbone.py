@@ -7,8 +7,8 @@ class WishboneBfm(SimpleBfm):
         "we", "cyc", "stb", "ack",
     ],optional=["sel"])
     has_sel = property(lambda self: self.bus.sel is not None)
-    def __init__(self, clock, entity = None, signals = None, reset=None, reset_n=None, period=10, period_unit="ns"):
-        super().__init__(clock, signals=signals, entity=entity, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit)
+    def __init__(self, clock, entity = None, signals = None, reset=None, reset_n=None, period=10, period_unit="ns",prefix=None):
+        super().__init__(clock, signals=signals, entity=entity, reset=reset, reset_n=reset_n, period=period, period_unit=period_unit, prefix=prefix)
     def source_init(self):
         self.bus.cyc.setimmediatevalue(0)
         self.bus.stb.setimmediatevalue(0)

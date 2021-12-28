@@ -1,3 +1,4 @@
+## Useful for chisel debugging: CHISELFLAGS="--no-constant-propagation --no-dce"
 
 PYTHON ?= $(if $(shell which python),python,python3)
 SHELL = bash
@@ -7,7 +8,7 @@ all: work/sim/result.xml
 
 .PHONY: clean
 clean:
-	rm -rf work/rtl work/sim work/logs out/
+	rm -rf work/rtl work/sim out/
 
 .venv: requirements.txt
 	$(PYTHON) -m venv .venv
@@ -15,7 +16,7 @@ clean:
 	source .venv/bin/activate; pip install -r requirements.txt
 
 work/rtl/copperv2.v: $(shell find ./src -name '*.scala' -o -name '*.v')
-	./scripts/mill copperv2.run
+	./scripts/mill copperv2.run $(CHISELFLAGS)
 
 work/sim/result.xml: work/rtl/copperv2.v .venv $(shell find ./sim -name '*.py')
 	source .venv/bin/activate; pytest -n $(shell nproc) --junitxml="$@"

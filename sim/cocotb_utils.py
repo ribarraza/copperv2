@@ -2,6 +2,7 @@ from collections import namedtuple
 import subprocess
 
 import cocotb
+from cocotb.decorators import RunningTask
 from cocotb.log import SimLog
 from cocotb.triggers import RisingEdge, ReadOnly, NextTimeStep, FallingEdge
 from cocotb.clock import Clock
@@ -52,8 +53,10 @@ class SimpleBfm(Bfm):
     def in_reset(self):
         """Boolean flag showing whether the bus is in reset state or not."""
         if self._reset is not None:
+            self.log.debug(f"in_reset: {self._reset._name}")
             return bool(self._reset.value.integer)
         if self._reset_n is not None:
+            self.log.debug(f"in_reset: {self._reset._name}")
             return not bool(self._reset_n.value.integer)
         return False
     def start_clock(self):
@@ -70,6 +73,7 @@ class SimpleBfm(Bfm):
             await RisingEdge(self.clock)
             self._reset_n.value = 1
     async def wait_for_signal(self,signal,value):
+        self.log.debug(f"wait_for_signal: {signal._name}")
         await ReadOnly()
         while self.in_reset or signal.value.binstr != str(value):
             await RisingEdge(self.clock)
@@ -77,7 +81,7 @@ class SimpleBfm(Bfm):
         await NextTimeStep()
 
 def anext(async_generator):
-    return async_generator.__anext__()
+    return RunningTask(async_generator.__anext__())
 
 def get_top_module(name):
     return cocotb.handle.SimHandle(cocotb.simulator.get_root_handle(name))

@@ -2,7 +2,6 @@ import logging
 import dataclasses
 import os
 from pathlib import Path
-from bus import ReadyValidBfm
 
 import cocotb
 from cocotb.log import SimLog
@@ -10,7 +9,11 @@ import toml
 
 from testbench import Testbench
 from riscv_utils import compile_instructions, parse_data_memory, compile_riscv_test
-from cocotb_utils import anext
+
+import pyuvm as uvm
+
+from bus import CoppervBusReadSourceBfm, CoppervBusWriteSourceBfm
+from wishbone import WishboneBfm
 
 if os.environ.get("VS_DEBUG",False):
     import debugpy
@@ -83,7 +86,31 @@ async def run_riscv_test(dut):
     await tb.bus_bfm.reset()
     await tb.end_test.wait()
 
-@cocotb.test(timeout_time=100,timeout_unit="us")
+from wb_adapter_uvm import WbAdapterTest
+
+@cocotb.test(timeout_time=1,timeout_unit="us")
 async def run_wishbone_adapter_test(dut):
     """ Wishbone adapter tests """
-    pass
+    wb_bfm = WishboneBfm(
+        clock=dut.clock,
+        reset=dut.reset,
+        entity=dut,
+        prefix="wb_")
+    r_bus_bfm = CoppervBusReadSourceBfm(
+        clock=dut.clock,
+        reset=dut.reset,
+        entity=dut,
+        prefix="cpu_r_ch_"
+    )
+    w_bus_bfm = CoppervBusWriteSourceBfm(
+        clock=dut.clock,
+        reset=dut.reset,
+        entity=dut,
+        prefix="cpu_w_ch_"
+    )
+    wb_bfm.start_clock()
+    await wb_bfm.reset()
+    #SimLog("bfm").setLevel(logging.DEBUG)
+    uvm.ConfigDB().set(None, "*", "WB_BFM", wb_bfm)
+    uvm.ConfigDB().set(None, "*", "BUS_BFM", dict(read=r_bus_bfm,write=w_bus_bfm))
+    await uvm.uvm_root().run_test(WbAdapterTest,keep_singletons=True)
