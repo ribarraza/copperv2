@@ -17,6 +17,9 @@ crt0.o: $(COMMON_DIR)/crt0.S
 	$(CC) $(LDFLAGS) -Wl,-T,$(LINKER_SCRIPT),-Bstatic -nostartfiles -ffreestanding $^ -o $@
 	$(SCRIPTS_DIR)/dev_utils.py debug $@
 
+%.hex: %.elf 
+	riscv64-unknown-elf-objcopy -O verilog $< $@ 
+
 .PHONY: clean
 clean:
 	rm -fv *.o *.elf *.debug *.E
