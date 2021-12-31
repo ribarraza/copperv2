@@ -1,0 +1,10 @@
+control_unit.v   
+execution.v      
+testbench.v
+checker_util.v  
+copperv_h.v     
+copperv.v        
+fake_memory.v  
+idecoder.v      
+register_file.v    
+testbench_h.v
